@@ -22,7 +22,7 @@
       "size": {
         "px": 230
       },
-      "min": 140,
+      "min": 32,
       "max": 420,
       "window_drag": true,
       "content": {

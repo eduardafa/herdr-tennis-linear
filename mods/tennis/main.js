@@ -13,6 +13,7 @@ const QUIET = new Set(["idle", "unknown"]);
 const COURT_PRIORITY = { blocked: 0, working: 1, done: 2, idle: 3, unknown: 4 };
 const BALL = "#dfff4f", BALL_EDGE = "#a8c225";
 const PLAYER_W = 46, PLAYER_H = 57, PLAYER_SPACING = 132, MIN_PLAYER_SPACING = 66, LABEL_W = 180, PLAYER_LABEL_REACH = (LABEL_W - PLAYER_W) / 2 + 8, RALLY_MS = 1800;
+const COURT_BLOCK = "tennis-court", COURT_H = 230, FOLDED_COURT_H = 32;
 const BENCH_AFTER = 10, SEAT_W = 48, BENCH_ROW_H = 78, WOOD = "#b07a45", WOOD_DARK = "#7a5130";
 
 const courtNow = () => {
@@ -23,11 +24,23 @@ const courtNow = () => {
 const icon = (p, size) => p?.icon
   ? (p.tint ? svg(p.icon).text_color(p.color ?? "#ffffff") : image(p.icon)).size(size)
   : div().size(size);
+const umpireCall = (list, t) => {
+  const blocked = list.filter((a) => a.status === "blocked").length;
+  const working = list.filter((a) => a.status === "working").length;
+  const done = list.filter((a) => a.status === "done").length;
+  const [text, color] = blocked ? [`Challenge! ${blocked} ${blocked === 1 ? "agent needs" : "agents need"} you`, t.blocked]
+    : working ? ["Quiet please, rally in progress", "#ffffff"]
+    : done ? ["Point! Check the results", "#ffffff"]
+    : list.length ? ["Players ready", "#ffffffb0"]
+    : ["", "#ffffff"];
+  return { text, color, alarm: blocked > 0 };
+};
 const rect = (x, y, w, h, color) => div().absolute().left(x).top(y).w(w).h(h).bg(color);
 
 export default class Tennis extends View {
   init() {
-    this.size = { width: 1200, height: 230 };
+    this.size = { width: 1200, height: COURT_H };
+    this.courtFolded = JSON.parse(localStorage.getItem("tennis.court.folded") ?? "false");
   }
 
   render() {
@@ -40,6 +53,7 @@ export default class Tennis extends View {
   scene() {
     const t = theme(), c = courtNow(), list = agents();
     setAgentOrder(list.map((a) => a.address));
+    if (this.courtFolded) return this.foldedCourt(t, c, list);
     const zoom = Number(settings()?.zoom) || 1;
     const W = this.size.width / zoom, H = this.size.height / zoom;
     const showBench = list.length > BENCH_AFTER;
@@ -100,14 +114,7 @@ export default class Tennis extends View {
     else if (hitter) rally = [racket(hitter), { x: cl + cw * 0.9, y: ct + ch / 2 }];
     else if (returner) rally = [{ x: cl + cw * 0.1, y: ct + ch / 2 }, racket(returner)];
 
-    const blocked = list.filter((a) => a.status === "blocked").length;
-    const working = list.filter((a) => a.status === "working").length;
-    const done = list.filter((a) => a.status === "done").length;
-    const umpire = blocked ? [`Challenge! ${blocked} ${blocked === 1 ? "agent needs" : "agents need"} you`, t.blocked]
-      : working ? ["Quiet please, rally in progress", "#ffffff"]
-      : done ? ["Point! Check the results", "#ffffff"]
-      : list.length ? ["Players ready", "#ffffffb0"]
-      : ["", "#ffffff"];
+    const umpire = umpireCall(list, t);
     const active = spaces().find((s) => s.active);
 
     return div().id("court").relative().size_full().overflow_hidden().bg(c.outside)
@@ -117,9 +124,10 @@ export default class Tennis extends View {
         .child(div().size(10).rounded(5).bg(BALL))
         .child(div().text_size(14).font_weight(800).text_color("#ffffff").child(c.venue))
         .child(div().text_size(13).text_color("#ffffffb0").child(active?.name ?? "")))
-      .child(div().absolute().right(W - cl - cw).top(my / 2 - 9).text_size(13).font_weight(700).text_color(umpire[1])
-        .when(blocked > 0, (el) => el.id("umpire").loop("opacity", { from: 0.55, to: 1, period: 900 }))
-        .child(umpire[0]))
+      .child(div().absolute().right(W - cl - cw).top(my / 2 - 9).text_size(13).font_weight(700).text_color(umpire.color)
+        .when(umpire.alarm, (el) => el.id("umpire").loop("opacity", { from: 0.55, to: 1, period: 900 }))
+        .child(umpire.text))
+      .child(div().absolute().right(8).top(6).child(this.foldButton("up")))
       .when(list.length === 0, (el) => el.child(v_flex().absolute().left(cl).top(ct + ch / 2 - 12).w(cw).items_center()
         .child(div().px(12).py(4).rounded(10).bg("#00000055").text_size(13).font_weight(600).text_color("#ffffff")
           .child("No players on court yet. Start an agent to serve."))))
@@ -167,6 +175,37 @@ export default class Tennis extends View {
         .text_color("#ffffffb0").child(`+${extra} more`));
     }
     return parts;
+  }
+
+  toggleCourt(cx) {
+    this.courtFolded = !this.courtFolded;
+    localStorage.setItem("tennis.court.folded", JSON.stringify(this.courtFolded));
+    run("layout.resize", { id: COURT_BLOCK, px: this.courtFolded ? FOLDED_COURT_H : COURT_H });
+    cx.notify();
+  }
+
+  foldButton(direction) {
+    const icon = direction === "up" ? "mods/tennis/chevron-up.svg" : "mods/workspace-chrome/chevron-down.svg";
+    return h_flex().id(`court-fold-${direction}`).size(20).flex_none().rounded(5).items_center().justify_center().cursor_pointer()
+      .bg("#00000033").hover((s) => s.bg("#00000066"))
+      .tooltip(direction === "up" ? "Hide the court" : "Show the court")
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); this.toggleCourt(cx); })
+      .child(svg(icon).size(12).text_color("#ffffff"));
+  }
+
+  foldedCourt(t, c, list) {
+    const umpire = umpireCall(list, t);
+    const active = spaces().find((s) => s.active);
+    return h_flex().id("court").size_full().pl(90).pr(8).gap(8).items_center().bg(c.outside)
+      .child(div().size(10).flex_none().rounded(5).bg(BALL))
+      .child(div().flex_none().text_size(13).font_weight(800).text_color("#ffffff").child(c.venue))
+      .child(div().min_w(0).truncate().text_size(12.5).text_color("#ffffffb0").child(active?.name ?? ""))
+      .child(div().flex_1())
+      .child(div().flex_none().text_size(12.5).font_weight(700).text_color(umpire.color)
+        .when(umpire.alarm, (el) => el.id("umpire-folded").loop("opacity", { from: 0.55, to: 1, period: 900 }))
+        .child(umpire.text))
+      .child(this.foldButton("down"));
   }
 
   player(p, t) {
