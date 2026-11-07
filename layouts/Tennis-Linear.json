@@ -1,0 +1,168 @@
+{
+  "id": "tennis-root",
+  "type": "column",
+  "titlebar": "none",
+  "traffic_lights": [
+    16,
+    18
+  ],
+  "theme": "tennis-hard",
+  "preview": "layouts/Tennis-Linear.svg",
+  "font_size": 13,
+  "ui_font": "Geist",
+  "background": "canvas",
+  "terminal_padding": [
+    8,
+    10
+  ],
+  "children": [
+    {
+      "id": "tennis-court",
+      "type": "block",
+      "size": {
+        "px": 230
+      },
+      "min": 140,
+      "max": 420,
+      "window_drag": true,
+      "content": {
+        "mod": "tennis"
+      }
+    },
+    {
+      "id": "tennis-scoreboard",
+      "type": "block",
+      "size": {
+        "px": 38
+      },
+      "resizable": false,
+      "content": {
+        "mod": "tennis",
+        "props": {
+          "role": "scoreboard"
+        }
+      }
+    },
+    {
+      "id": "tennis-play",
+      "type": "row",
+      "divider": {
+        "width": 1,
+        "color": "border"
+      },
+      "children": [
+        {
+          "id": "sidebar",
+          "type": "column",
+          "size": {
+            "px": 240
+          },
+          "min": 40,
+          "max": 420,
+          "divider": {
+            "width": 1,
+            "color": "border"
+          },
+          "children": [
+            {
+              "id": "tennis-agent-groups",
+              "type": "block",
+              "size": {
+                "weight": 1
+              },
+              "min": 120,
+              "content": {
+                "mod": "tennis-spaces",
+                "props": {
+                  "role": "agents"
+                }
+              }
+            },
+            {
+              "id": "tennis-spaces",
+              "type": "block",
+              "size": {
+                "weight": 1
+              },
+              "min": 31,
+              "content": {
+                "mod": "tennis-spaces"
+              }
+            }
+          ]
+        },
+        {
+          "id": "tennis-work",
+          "type": "column",
+          "children": [
+            {
+              "id": "tennis-tabs",
+              "type": "block",
+              "size": {
+                "px": 30
+              },
+              "content": {
+                "mod": "tabs"
+              }
+            },
+            {
+              "id": "tennis-main",
+              "type": "block",
+              "padding": [
+                8,
+                8
+              ],
+              "background": "canvas",
+              "content": {
+                "tab": "active",
+                "pane": {
+                  "gap": 8,
+                  "radius": 6,
+                  "lone": true,
+                  "background": "background",
+                  "border": {
+                    "width": 2,
+                    "color": "border"
+                  },
+                  "focus": {
+                    "width": 2,
+                    "color": "accent"
+                  },
+                  "header": {
+                    "content": {
+                      "mod": "tennis",
+                      "props": {
+                        "role": "pane"
+                      }
+                    },
+                    "height": 26,
+                    "position": "top",
+                    "reveal": "always"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "tennis-linear",
+          "type": "column",
+          "size": {
+            "px": 300
+          },
+          "min": 36,
+          "max": 520,
+          "children": [
+            {
+              "id": "tennis-linear-panel",
+              "type": "block",
+              "content": {
+                "mod": "linear-court"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
