@@ -1,6 +1,6 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, spaces, panes, props, run, settings, shared, theme, setAgentOrder } from "herdr";
+import { agents, spaces, panes, props, run, settings, shared, theme, setAgentOrder, hc, exec, home, readTextFile } from "herdr";
 
 const COURTS = [
   { theme: "tennis-hard", label: "Hard", short: "NY", venue: "New York hard court", court: "#3a6db3", stripe: "#3a6db3", outside: "#3f7f47", line: "#ffffff" },
@@ -96,10 +96,20 @@ const umpireCall = (list, t) => {
   return { text, color, alarm: blocked > 0 };
 };
 const rect = (x, y, w, h, color) => div().absolute().left(x).top(y).w(w).h(h).bg(color);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const minutes = (ms) => (ms <= 0 ? "0m" : ms < 60000 ? "<1m" : ms < 3600000 ? `${Math.floor(ms / 60000)}m`
+  : `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`);
+const prettyModel = (id) => {
+  const found = (id ?? "").match(/claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?=-\d{8}|$|\[)/i);
+  if (!found) return id || null;
+  return `${found[1][0].toUpperCase()}${found[1].slice(1)} ${found[2]}${found[3] ? `.${found[3]}` : ""}`;
+};
+const INFO_FRESH_MS = 30000, CARD_W = 290;
 
 export default class Tennis extends View {
   init() {
     this.size = { width: 1200, height: COURT_H };
+    this.info = {};
     this.courtFolded = JSON.parse(localStorage.getItem("tennis.court.folded") ?? "false");
     if (!props()?.role && this.courtFolded) run("layout.resize", { id: COURT_BLOCK, px: FOLDED_COURT_H });
   }
@@ -179,6 +189,7 @@ export default class Tennis extends View {
 
     const umpire = umpireCall(list, t);
     const active = spaces().find((s) => s.active);
+    const hovered = [...left, ...right].find((p) => p.a.address === this.hovered);
 
     return div().id("court").relative().size_full().overflow_hidden().bg(c.outside)
       .on_size_change((size, cx) => { this.size = size; cx.notify(); })
@@ -202,7 +213,71 @@ export default class Tennis extends View {
           .child(div().text_size(12).text_color("#ffffffb0").child(String(benched.length))))
         .children(this.bench(benched, benchX, ct, benchW, ch, t)))
       .when(!showBench && benched.length > 0, (el) => el.child(div().absolute().right(cl + 8).bottom(my + 6).px(8).py(2).rounded(8)
-        .bg("#00000055").text_size(11).font_weight(600).text_color("#ffffff").child(`+${benched.length} waiting`)));
+        .bg("#00000055").text_size(11).font_weight(600).text_color("#ffffff").child(`+${benched.length} waiting`)))
+      .when(Boolean(hovered), (el) => el.child(this.card(hovered, t, W, H)));
+  }
+
+  hover(address) {
+    return (hovered, cx) => {
+      if (hovered) {
+        this.hovered = address;
+        if (Date.now() - (this.info[address]?.at ?? 0) > INFO_FRESH_MS) cx.spawn(async (cx) => { await this.loadInfo(address); cx.notify(); });
+      } else if (this.hovered === address) {
+        this.hovered = null;
+      }
+      cx.notify();
+    };
+  }
+
+  async loadInfo(address) {
+    const info = { at: Date.now() };
+    try {
+      const r = await hc(["get", address, "--json"]);
+      const term = JSON.parse(r.stdout);
+      info.version = term.foreground?.name ?? null;
+      info.doing = term.status?.msg ?? null;
+      info.title = term.title ?? null;
+      info.started = term.created_ms ?? null;
+      info.statusSince = term.status_ms ?? null;
+      const pid = term.foreground?.pid;
+      const session = pid ? JSON.parse((await readTextFile(`${home()}/.claude/sessions/${pid}.json`)) ?? "null") : null;
+      if (session?.sessionId) {
+        const found = await exec("find", [`${home()}/.claude/projects`, "-maxdepth", "2", "-name", `${session.sessionId}.jsonl`]);
+        const transcript = found.stdout.trim().split("\n")[0];
+        if (transcript) {
+          const tail = await exec("tail", ["-c", "400000", transcript]);
+          const models = [...tail.stdout.matchAll(/"model":"([^"]+)"/g)].map((m) => m[1]).filter((m) => m.startsWith("claude"));
+          info.model = prettyModel(models[models.length - 1]);
+        }
+      }
+    } catch {
+      info.failed = true;
+    }
+    this.info[address] = info;
+  }
+
+  card(p, t, W, H) {
+    const { a } = p;
+    const info = this.info[a.address];
+    const color = t[a.status] ?? t.idle;
+    const branch = panes().find((x) => x.pane === a.pane)?.branch;
+    const x = clamp(p.side === "left" ? p.x + PLAYER_W + 12 : p.x - CARD_W - 12, 4, W - CARD_W - 4);
+    const y = clamp(p.y - 8, 4, H - 124);
+    const row = (label, value) => h_flex().gap(6).text_size(11)
+      .child(div().w(54).flex_none().text_color(t.dim).child(label))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(value));
+    const program = [a.program?.name ?? "Terminal", info?.version].filter(Boolean).join(" ");
+    const status = [CALL[a.status] ?? a.status, info?.statusSince ? minutes(Date.now() - info.statusSince) : ""].filter(Boolean).join(" ");
+    return v_flex().id("player-card").absolute().left(x).top(y).w(CARD_W).p(10).gap(4).rounded(8).bg(t.popover).border(1).border_color(t.border)
+      .child(h_flex().gap(6).items_center().pb(2)
+        .child(icon(a.program, 13))
+        .child(div().flex_1().min_w(0).truncate().text_size(12.5).font_weight(700).text_color(t.foreground).child(a.space_name))
+        .child(div().flex_none().text_size(11).font_weight(700).text_color(color).child(status)))
+      .child(row("Model", info ? info.model ?? "Not reported" : "Loading..."))
+      .child(row("Program", program))
+      .child(row("Doing", info?.doing || info?.title || "..."))
+      .when(Boolean(branch), (el) => el.child(row("Branch", branch)))
+      .when(Boolean(info?.started), (el) => el.child(row("Started", minutes(Date.now() - info.started) + " ago")));
   }
 
   bench(list, x, y, w, h, t) {
@@ -331,6 +406,7 @@ export default class Tennis extends View {
     return v_flex().id(`player-${a.address}`).absolute().left(x + PLAYER_W / 2 - LABEL_W / 2).top(y - 18).w(LABEL_W).items_center().gap(1)
       .cursor_pointer()
       .transition("top", { duration: 500, easing: "ease-in-out" })
+      .on_hover(this.hover(a.address))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click(() => run("agent.focus", { terminal: a.address }))
       .child(badge)
