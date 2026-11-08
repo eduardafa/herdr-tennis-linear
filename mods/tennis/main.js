@@ -271,7 +271,7 @@ export default class Tennis extends View {
     const look = looks(a);
     return div().relative().w(40).h(52)
       .child(layer("bench-skin", 40, 52, look.skin))
-      .child(layer("bench-shirt", 40, 52, look.shirt))
+      .child(layer(`bench-shirt-${look.kind}`, 40, 52, look.shirt))
       .child(layer(`bench-hair-${look.style}`, 40, 52, look.hair))
       .child(layer(`bench-band-${look.kind}`, 40, 52, look.band))
       .child(layer(`bench-gear-${look.kind}`, 40, 52));
@@ -281,10 +281,11 @@ export default class Tennis extends View {
     const look = looks(a), s = side === "left" ? "r" : "l", pose = POSE[a.status] ?? "ready";
     const arms = (frame) => div().absolute().left(0).top(0).size_full()
       .child(layer(`arms-${frame}-${s}`, PLAYER_W, PLAYER_H, look.skin))
+      .when(look.kind === "man", (el) => el.child(layer(`sleeves-${frame}-${s}`, PLAYER_W, PLAYER_H, look.shirt)))
       .child(layer(`gear-${frame}-${s}`, PLAYER_W, PLAYER_H));
     const figure = div().id(`figure-${a.address}`).relative().w(PLAYER_W).h(PLAYER_H)
       .child(layer(`skin-${s}`, PLAYER_W, PLAYER_H, look.skin))
-      .child(layer(`shirt-${s}`, PLAYER_W, PLAYER_H, look.shirt))
+      .child(layer(`shirt-${look.kind}-${s}`, PLAYER_W, PLAYER_H, look.shirt))
       .child(layer(`hair-${look.style}-${s}`, PLAYER_W, PLAYER_H, look.hair))
       .child(layer(`band-${look.kind}-${s}`, PLAYER_W, PLAYER_H, look.band))
       .child(layer(`gear-${look.kind}-${s}`, PLAYER_W, PLAYER_H));
