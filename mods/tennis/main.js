@@ -1,10 +1,11 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, spaces, panes, props, run, settings, theme, setAgentOrder } from "herdr";
+import { agents, spaces, panes, props, run, settings, shared, theme, setAgentOrder } from "herdr";
 
 const COURTS = [
-  { theme: "tennis-hard", label: "Hard", venue: "Hard court", court: "#3a6db3", stripe: "#3a6db3", outside: "#3f7f47", line: "#ffffff" },
-  { theme: "tennis-grass", label: "Grass", venue: "Grass court", court: "#5c9a3c", stripe: "#69a847", outside: "#4a7f30", line: "#fbfbf3" },
+  { theme: "tennis-hard", label: "Hard", short: "NY", venue: "New York hard court", court: "#3a6db3", stripe: "#3a6db3", outside: "#3f7f47", line: "#ffffff" },
+  { theme: "tennis-hard-melbourne", label: "Hard", short: "MEL", venue: "Melbourne hard court", court: "#2a8bd4", stripe: "#2a8bd4", outside: "#1b4f9e", line: "#ffffff" },
+  { theme: "tennis-grass", label: "Grass", venue: "Grass court", whites: true, court: "#5c9a3c", stripe: "#69a847", outside: "#4a7f30", line: "#fbfbf3" },
   { theme: "tennis-clay", label: "Clay", venue: "Clay court", court: "#c8632f", stripe: "#c8632f", outside: "#a8512a", line: "#fff7ee" },
   { theme: "tennis-indoor", label: "Indoor", venue: "Indoor arena", court: "#2346a8", stripe: "#2346a8", outside: "#141826", line: "#ffffff" },
 ];
@@ -15,6 +16,14 @@ const BALL = "#dfff4f", BALL_EDGE = "#a8c225";
 const PLAYER_W = 46, PLAYER_H = 57, PLAYER_SPACING = 132, MIN_PLAYER_SPACING = 66, LABEL_W = 180, PLAYER_LABEL_REACH = (LABEL_W - PLAYER_W) / 2 + 8, RALLY_MS = 1800;
 const WINDOW_BUTTONS_MIDDLE = 19, TOP_ROW_H = 20;
 const COURT_BLOCK = "tennis-court", COURT_H = 230, FOLDED_COURT_H = WINDOW_BUTTONS_MIDDLE * 2;
+const ART = "mods/tennis/players";
+const SPACE_COLOR = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+const SKIN = ["#f3d0b0", "#e8b98f", "#d29a6c", "#b07a4f", "#8a5a36", "#603c24"];
+const HAIR = ["#1f1712", "#3b2618", "#5a3a22", "#8a5a2b", "#c99a4b", "#a8462a", "#d8d2c4"];
+const HAIRSTYLES = { woman: ["ponytail", "bun"], man: ["short", "buzz"] };
+const WHITES = "#f4f4ee";
+const MIN_SHIRT_CONTRAST = 45, MIN_SHIRT_LIGHTNESS_GAP = 22, CONTRAST_SHIRTS = [WHITES, "#f2c94c"];
+const POSE = { working: "rally", blocked: "challenge", done: "point", idle: "ready", unknown: "ready" };
 const BENCH_AFTER = 10, SEAT_W = 48, BENCH_ROW_H = 78, WOOD = "#b07a45", WOOD_DARK = "#7a5130";
 
 const courtNow = () => {
@@ -22,6 +31,53 @@ const courtNow = () => {
   const name = typeof picked === "string" ? picked : picked?.dark ?? picked?.light;
   return COURTS.find((c) => c.theme === name) ?? COURTS[0];
 };
+const hash = (text) => [...text].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+const lab = (hex) => {
+  const linear = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const [r, g, b] = linear;
+  const f = (v) => (v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116);
+  const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047), y = f(r * 0.2126 + g * 0.7152 + b * 0.0722);
+  const z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+};
+const colorDistance = (a, b) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
+const mixWithWhite = (hex, amount) => "#" + [1, 3, 5]
+  .map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - amount) + 255 * amount).toString(16).padStart(2, "0"))
+  .join("");
+const clearOfCourt = (color, court) => {
+  const courtLightness = lab(court.court)[0];
+  let shirt = color;
+  for (let amount = 0.1; amount <= 0.8 && Math.abs(lab(shirt)[0] - courtLightness) < MIN_SHIRT_LIGHTNESS_GAP; amount += 0.1) {
+    shirt = mixWithWhite(color, amount);
+  }
+  return shirt;
+};
+const shirtOnCourt = (color, court) => {
+  if (court.whites) return WHITES;
+  const blends = (c) => colorDistance(c, court.court) < MIN_SHIRT_CONTRAST;
+  if (!blends(color)) return clearOfCourt(color, court);
+  const clashing = Object.values(SPACE_COLOR).filter(blends);
+  const turn = clashing.indexOf(color);
+  return CONTRAST_SHIRTS[(turn < 0 ? hash(color) : turn) % CONTRAST_SHIRTS.length];
+};
+const looks = (a) => {
+  const stored = (shared("space.colors") ?? {})[a.space];
+  const shirt = stored?.startsWith("#") ? stored
+    : SPACE_COLOR[stored] ?? Object.values(SPACE_COLOR)[hash(a.space) % 6];
+  const key = a.pane ?? a.address;
+  const kind = hash(`${key}kind`) % 2 ? "woman" : "man";
+  return {
+    kind,
+    shirt: shirtOnCourt(shirt, courtNow()),
+    band: "#ffffff",
+    skin: SKIN[hash(`${key}skin`) % SKIN.length],
+    hair: HAIR[hash(`${key}hair`) % HAIR.length],
+    style: HAIRSTYLES[kind][hash(`${key}style`) % 2],
+  };
+};
+const layer = (file, w, h, color) => (color ? svg(`${ART}/${file}.svg`).text_color(color) : image(`${ART}/${file}.svg`))
+  .absolute().left(0).top(0).w(w).h(h);
 const icon = (p, size) => p?.icon
   ? (p.tint ? svg(p.icon).text_color(p.color ?? "#ffffff") : image(p.icon)).size(size)
   : div().size(size);
@@ -115,6 +171,8 @@ export default class Tennis extends View {
     if (hitter && returner) rally = [racket(hitter), racket(returner)];
     else if (hitter) rally = [racket(hitter), { x: cl + cw * 0.9, y: ct + ch / 2 }];
     else if (returner) rally = [{ x: cl + cw * 0.1, y: ct + ch / 2 }, racket(returner)];
+    const rallyKey = `${hitter?.a.address ?? "none"}-${returner?.a.address ?? "none"}`;
+    const swing = (p) => (p === hitter ? "hit" : p === returner ? "return" : null);
 
     const umpire = umpireCall(list, t);
     const active = spaces().find((s) => s.active);
@@ -133,8 +191,8 @@ export default class Tennis extends View {
       .when(list.length === 0, (el) => el.child(v_flex().absolute().left(cl).top(ct + ch / 2 - 12).w(cw).items_center()
         .child(div().px(12).py(4).rounded(10).bg("#00000055").text_size(13).font_weight(600).text_color("#ffffff")
           .child("No players on court yet. Start an agent to serve."))))
-      .children([...left, ...right].map((p) => this.player(p, t)))
-      .when(rally !== null, (el) => el.child(this.ball(rally[0], rally[1])))
+      .children([...left, ...right].map((p) => this.player(p, t, swing(p), rallyKey)))
+      .when(rally !== null, (el) => el.child(this.ball(rally[0], rally[1], rallyKey)))
       .when(showBench, (el) => el
         .child(h_flex().absolute().left(benchX).top(WINDOW_BUTTONS_MIDDLE - TOP_ROW_H / 2).h(TOP_ROW_H).gap(6).items_center()
           .child(div().text_size(12).font_weight(800).text_color("#ffffff").child("BENCH"))
@@ -166,8 +224,7 @@ export default class Tennis extends View {
       parts.push(v_flex().id(`bench-${a.address}`).absolute().left(sx).top(ry).w(SEAT_W).items_center().cursor_pointer()
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("agent.focus", { terminal: a.address }))
-        .child(div().relative().w(40).h(52)
-          .child(image("mods/tennis/player-sitting.svg").w(40).h(52))
+        .child(this.seatedFigure(a)
           .child(div().id(`bench-dot-${a.address}`).absolute().right(0).top(0).size(8).rounded(4).bg(t[a.status] ?? t.idle)
             .when(pulsing, (d) => d.loop("opacity", { from: 0.4, to: 1, period: 800 }))))
         .child(div().max_w(SEAT_W).text_size(9).font_weight(600).text_color("#ffffff").truncate().child(a.space_name)));
@@ -210,14 +267,46 @@ export default class Tennis extends View {
       .child(this.foldButton("down"));
   }
 
-  player(p, t) {
+  seatedFigure(a) {
+    const look = looks(a);
+    return div().relative().w(40).h(52)
+      .child(layer("bench-skin", 40, 52, look.skin))
+      .child(layer("bench-shirt", 40, 52, look.shirt))
+      .child(layer(`bench-hair-${look.style}`, 40, 52, look.hair))
+      .child(layer(`bench-band-${look.kind}`, 40, 52, look.band))
+      .child(layer(`bench-gear-${look.kind}`, 40, 52));
+  }
+
+  playerFigure(a, side, swing, rallyKey) {
+    const look = looks(a), s = side === "left" ? "r" : "l", pose = POSE[a.status] ?? "ready";
+    const arms = (frame) => div().absolute().left(0).top(0).size_full()
+      .child(layer(`arms-${frame}-${s}`, PLAYER_W, PLAYER_H, look.skin))
+      .child(layer(`gear-${frame}-${s}`, PLAYER_W, PLAYER_H));
+    const figure = div().id(`figure-${a.address}`).relative().w(PLAYER_W).h(PLAYER_H)
+      .child(layer(`skin-${s}`, PLAYER_W, PLAYER_H, look.skin))
+      .child(layer(`shirt-${s}`, PLAYER_W, PLAYER_H, look.shirt))
+      .child(layer(`hair-${look.style}-${s}`, PLAYER_W, PLAYER_H, look.hair))
+      .child(layer(`band-${look.kind}-${s}`, PLAYER_W, PLAYER_H, look.band))
+      .child(layer(`gear-${look.kind}-${s}`, PLAYER_W, PLAYER_H));
+    if (pose !== "rally") return figure.child(arms(pose));
+    if (!swing) return figure.child(arms("rally-b"));
+    const nearBall = swing === "hit" ? { from: 1, to: 0, easing: "ease-out" } : { from: 0, to: 1, easing: "ease-in" };
+    const awayFromBall = { from: 1 - nearBall.from, to: 1 - nearBall.to, easing: nearBall.easing };
+    const id = `${a.address}-${rallyKey}`;
+    return figure
+      .child(div().id(`swing-a-${id}`).absolute().left(0).top(0).size_full()
+        .loop("opacity", { ...nearBall, period: RALLY_MS })
+        .child(arms("rally-a").id(`swing-snap-${id}`).loop("opacity", { from: 1, to: 0, period: RALLY_MS / 2, easing: "ease-out" })))
+      .child(arms("rally-b").id(`swing-b-${id}`).loop("opacity", { ...awayFromBall, period: RALLY_MS }));
+  }
+
+  player(p, t, swing, rallyKey) {
     const { a, x, y, side } = p;
     const color = t[a.status] ?? t.idle;
-    const art = side === "left" ? "player-facing-right" : "player-facing-left";
-    let figure = div().id(`figure-${a.address}`).relative().w(PLAYER_W).h(PLAYER_H)
-      .child(image(`mods/tennis/${art}.svg`).w(PLAYER_W).h(PLAYER_H));
+    let figure = this.playerFigure(a, side, swing, rallyKey);
     if (a.status === "working") figure = figure.loop("top", { from: 0, to: -5, period: 560 });
-    if (a.status === "blocked") figure = figure.loop("top", { from: 0, to: -16, period: 760 });
+    if (a.status === "blocked") figure = figure.loop("top", { from: 0, to: -6, period: 760 });
+    if (QUIET.has(a.status)) figure = figure.loop("top", { from: 0, to: -1.5, period: 1400 });
     if (a.status === "idle" || a.status === "unknown") {
       figure = figure.child(div().id(`bounce-${a.address}`).absolute()
         .left(side === "left" ? PLAYER_W * 0.62 : PLAYER_W * 0.2).top(PLAYER_H - 10).size(8).rounded(4)
@@ -244,13 +333,13 @@ export default class Tennis extends View {
         .child(div().text_size(9.5).font_weight(700).text_color(QUIET.has(a.status) ? "#ffffffb0" : color).child(CALL[a.status] ?? "")));
   }
 
-  ball(from, to) {
-    return div().id("rally-y").absolute().left(0).top(from.y).w(1).h(1)
+  ball(from, to, rallyKey) {
+    return div().id(`rally-y-${rallyKey}`).absolute().left(0).top(from.y).w(1).h(1)
       .loop("top", { from: from.y, to: to.y, period: RALLY_MS, easing: "linear" })
-      .child(div().id("rally-x").absolute().left(from.x).top(0).w(1).h(1)
+      .child(div().id(`rally-x-${rallyKey}`).absolute().left(from.x).top(0).w(1).h(1)
         .loop("left", { from: from.x, to: to.x, period: RALLY_MS, easing: "linear" })
         .child(div().absolute().left(-6).top(5).w(12).h(5).rounded(3).bg("#00000044"))
-        .child(div().id("rally-arc").absolute().left(-6).top(-6).size(12).rounded(6).bg(BALL).border(1).border_color(BALL_EDGE)
+        .child(div().id(`rally-arc-${rallyKey}`).absolute().left(-6).top(-6).size(12).rounded(6).bg(BALL).border(1).border_color(BALL_EDGE)
           .loop("top", { from: -6, to: -34, period: RALLY_MS / 2, easing: "ease-out" })));
   }
 
@@ -265,14 +354,34 @@ export default class Tennis extends View {
         .child(div().text_size(10).font_weight(700).text_color(t.muted).child(CALL[status].toUpperCase()))
         .child(div().text_size(15).font_weight(800).text_color(n ? t[status] : t.dim).child(String(n)));
     };
-    const chip = (court) => {
-      const on = court.theme === c.theme;
-      return h_flex().id(`court-${court.label}`).gap(5).items_center().px(9).py(3).rounded(10).cursor_pointer()
-        .bg(on ? t.accent : t.raised).hover((s) => s.bg(on ? t.accent : t.hover))
-        .on_click(() => run("app.theme", { name: court.theme }))
-        .child(div().size(8).rounded(4).bg(court.court).border(1).border_color(court.line))
-        .child(div().text_size(11).font_weight(700).text_color(on ? t.accent_foreground : t.foreground).child(court.label));
+    const swatch = (court) => div().size(8).rounded(4).bg(court.court).border(1).border_color(court.line);
+    const pick = (court) => () => run("app.theme", { name: court.theme });
+    const chip = (courts) => {
+      const on = courts.some((x) => x.theme === c.theme);
+      const fg = on ? t.accent_foreground : t.foreground;
+      const label = div().text_size(11).font_weight(700).text_color(fg).child(courts[0].label);
+      const base = h_flex().id(`court-${courts[0].label}`).gap(5).items_center().py(3).rounded(10).bg(on ? t.accent : t.raised);
+      if (courts.length === 1) {
+        return base.px(9).cursor_pointer().hover((s) => s.bg(on ? t.accent : t.hover))
+          .on_click(pick(courts[0])).child(swatch(courts[0])).child(label);
+      }
+      const segment = (court) => {
+        const picked = court.theme === c.theme;
+        return h_flex().id(`court-${court.theme}`).gap(4).items_center().px(6).py(1).rounded(8).cursor_pointer()
+          .when(picked, (s) => s.bg(t.chrome))
+          .hover((s) => s.bg(picked ? t.chrome : on ? t.accent_foreground + "26" : t.hover))
+          .on_click(pick(court))
+          .child(swatch(court))
+          .child(div().text_size(10).font_weight(800).text_color(picked ? t.accent : fg).child(court.short));
+      };
+      return base.pl(9).pr(3).child(label).children(courts.map(segment));
     };
+    const surfaces = COURTS.reduce((groups, court) => {
+      const last = groups[groups.length - 1];
+      if (last?.[0].label === court.label) last.push(court);
+      else groups.push([court]);
+      return groups;
+    }, []);
     return h_flex().size_full().px(14).items_center().justify_between().bg(t.chrome).text_color(t.foreground)
       .child(h_flex().gap(8).items_center().min_w(0)
         .child(div().text_size(10).font_weight(800).text_color(t.accent).child("SCOREBOARD"))
@@ -280,7 +389,7 @@ export default class Tennis extends View {
       .child(h_flex().items_center()
         .child(cell("working")).child(divider()).child(cell("blocked")).child(divider())
         .child(cell("done")).child(divider()).child(cell("idle")))
-      .child(h_flex().gap(6).items_center().children(COURTS.map(chip)));
+      .child(h_flex().gap(6).items_center().children(surfaces.map(chip)));
   }
 
   paneHeader() {

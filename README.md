@@ -35,7 +35,8 @@ To start agents on issues from a fresh worktree, list your repos in `~/.config/h
 
 ## Use
 
-- Pick a court with the Hard, Grass, Clay and Indoor buttons on the scoreboard, or a tennis theme in Settings.
+- Pick a court with the Hard (NY or MEL), Grass, Clay and Indoor buttons on the scoreboard, or a tennis theme in Settings. After installing, restart Herdr once so it loads the Melbourne theme.
+- Each player wears its space's color, except on grass, where everyone wears white.
 - Click a player, or an agent in the left panel, to jump to that agent.
 - The left panel groups your agents into Rally (working), Challenge (needs you), Ready and Point (finished). Each space below shows the same marker for its busiest agent.
 - Click a section header, the Spaces header or a repo's arrow to fold it.
