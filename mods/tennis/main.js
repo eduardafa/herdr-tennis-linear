@@ -1,6 +1,8 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, spaces, panes, props, run, settings, shared, theme, setAgentOrder, hc, exec, home, readTextFile } from "herdr";
+import { agents, spaces, panes, props, run, settings, shared, theme, setAgentOrder, hc, exec, home, readTextFile, openOverlay } from "herdr";
+const agentName = (a) => spaces().find((s) => s.id === a.space)?.tabs?.find((c) => c.id === a.tab)?.named ? a.tab_name : a.space_name;
+const agentMenu = (a) => openOverlay({ mod: "agent-menu", kind: "popup", width: 200, height: 250, props: { terminal: a.address } });
 
 const COURTS = [
   { theme: "tennis-hard", label: "Hard", short: "NY", venue: "New York hard court", court: "#3a6db3", stripe: "#3a6db3", outside: "#3f7f47", line: "#ffffff" },
@@ -271,7 +273,7 @@ export default class Tennis extends View {
     return v_flex().id("player-card").absolute().left(x).top(y).w(CARD_W).p(10).gap(4).rounded(8).bg(t.popover).border(1).border_color(t.border)
       .child(h_flex().gap(6).items_center().pb(2)
         .child(icon(a.program, 13))
-        .child(div().flex_1().min_w(0).truncate().text_size(12.5).font_weight(700).text_color(t.foreground).child(a.space_name))
+        .child(div().flex_1().min_w(0).truncate().text_size(12.5).font_weight(700).text_color(t.foreground).child(agentName(a)))
         .child(div().flex_none().text_size(11).font_weight(700).text_color(color).child(status)))
       .child(row("Model", info ? info.model ?? "Not reported" : "Loading..."))
       .child(row("Program", program))
@@ -302,10 +304,11 @@ export default class Tennis extends View {
       parts.push(v_flex().id(`bench-${a.address}`).absolute().left(sx).top(ry).w(SEAT_W).items_center().cursor_pointer()
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("agent.focus", { terminal: a.address }))
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); agentMenu(a); })
         .child(this.seatedFigure(a)
           .child(div().id(`bench-dot-${a.address}`).absolute().right(0).top(0).size(8).rounded(4).bg(t[a.status] ?? t.idle)
             .when(pulsing, (d) => d.loop("opacity", { from: 0.4, to: 1, period: 800 }))))
-        .child(div().max_w(SEAT_W).text_size(9).font_weight(600).text_color("#ffffff").truncate().child(a.space_name)));
+        .child(div().max_w(SEAT_W).text_size(9).font_weight(600).text_color("#ffffff").truncate().child(agentName(a))));
     });
     if (extra > 0) {
       parts.push(div().absolute().left(x + w - 60).top(y + h - 6).text_size(11).font_weight(600)
@@ -409,13 +412,14 @@ export default class Tennis extends View {
       .on_hover(this.hover(a.address))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click(() => run("agent.focus", { terminal: a.address }))
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); agentMenu(a); })
       .child(badge)
       .child(figure)
       .child(v_flex().items_center().max_w(LABEL_W).px(7).py(1).rounded(6).bg("#00000066")
         .when(a.focused, (el) => el.border(1).border_color(BALL))
         .child(h_flex().gap(4).items_center().max_w(LABEL_W - 14)
           .child(icon(a.program, 12))
-          .child(div().text_size(11).font_weight(600).text_color("#ffffff").truncate().child(a.space_name)))
+          .child(div().text_size(11).font_weight(600).text_color("#ffffff").truncate().child(agentName(a))))
         .child(div().text_size(9.5).font_weight(700).text_color(QUIET.has(a.status) ? "#ffffffb0" : color).child(CALL[a.status] ?? "")));
   }
 

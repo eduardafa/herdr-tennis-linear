@@ -39,6 +39,7 @@ To start agents on issues from a fresh worktree, list your repos in `~/.config/h
 - Each player wears its space's color, except on grass, where everyone wears white.
 - Click a player, or an agent in the left panel, to jump to that agent.
 - Hover over a player to see its model, program, what it's doing, its branch and when it started.
+- Right-click a player, or an agent in the left panel, for its menu: go to it, peek at it, rename it, pin it to the top, split a shell beside it, or close it. A renamed agent shows its new name everywhere; renaming it to nothing goes back to its space's name.
 - Agents in Rally and Challenge show how long they've been in that status in the left panel.
 - Your name and a settings button sit under the Spaces list.
 - The left panel groups your agents into Rally (working), Challenge (needs you), Ready and Point (finished). Each space below shows the same marker for its busiest agent.

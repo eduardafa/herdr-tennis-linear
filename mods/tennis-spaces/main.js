@@ -1,4 +1,4 @@
-// Derived from the `spaces` mod shipped with Herdr (Apache-2.0, https://github.com/herdrdev/herdr-app). Modified: with props role "agents", it shows agents grouped by status (Rally, Challenge, Ready, Point) instead of the spaces; the Spaces header and each repo's worktrees fold; each space shows its most urgent agent's status marker; with props role "you", it shows the user's name and a settings button; Rally and Challenge agents show how long they have been in that status.
+// Derived from the `spaces` mod shipped with Herdr (Apache-2.0, https://github.com/herdrdev/herdr-app). Modified: with props role "agents", it shows agents grouped by status (Rally, Challenge, Ready, Point) instead of the spaces; the Spaces header and each repo's worktrees fold; each space shows its most urgent agent's status marker; with props role "you", it shows the user's name and a settings button; Rally and Challenge agents show how long they have been in that status; agents are named after their tab once it is renamed, and right-clicking one opens its menu (go to, peek, rename, pin, split, close).
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
@@ -51,6 +51,8 @@ const FOLDED_SPACES_H = 31;
 const TIMED = new Set(["working", "blocked"]);
 const minutes = (ms) => (ms < 60000 ? "<1m" : ms < 3600000 ? `${Math.floor(ms / 60000)}m`
   : `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`);
+const agentName = (a) => spaces().find((s) => s.id === a.space)?.tabs?.find((c) => c.id === a.tab)?.named ? a.tab_name : a.space_name;
+const agentMenu = (a) => openOverlay({ mod: "agent-menu", kind: "popup", width: 200, height: 250, props: { terminal: a.address } });
 const tint = (color, alpha, fallback) => (/^#[0-9a-f]{6}$/i.test(color ?? "") ? color + alpha : fallback);
 
 // A space speaks up only when something in it needs you.
@@ -535,9 +537,10 @@ export default class Spaces extends View {
         .when(a.focused, (el) => el.bg(tint(color, "33", t.selected)))
         .when(!a.focused, (el) => el.hover((s) => s.bg(tint(color, "22", t.hover))))
         .on_click(() => run("agent.focus", { terminal: a.address }))
+        .on_mouse_down("right", () => agentMenu(a))
         .child(h_flex().size(14).flex_none().items_center().justify_center().child(this.agentMark(group, a, n, t)))
         .when(!collapsed, (el) => el
-          .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(a.space_name))
+          .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(agentName(a)))
           .when(TIMED.has(a.status) && this.statusSince[a.address]?.status === a.status && Boolean(this.statusSince[a.address]?.at), (row) => row
             .child(div().flex_none().text_size(11).font_weight(700).text_color(a.status === "blocked" ? t.blocked : t.dim)
               .child(minutes(Date.now() - this.statusSince[a.address].at))))
