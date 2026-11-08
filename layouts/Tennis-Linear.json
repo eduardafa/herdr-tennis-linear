@@ -4,7 +4,7 @@
   "titlebar": "none",
   "traffic_lights": [
     16,
-    18
+    10
   ],
   "theme": "tennis-hard",
   "preview": "layouts/Tennis-Linear.svg",
@@ -22,7 +22,7 @@
       "size": {
         "px": 230
       },
-      "min": 32,
+      "min": 38,
       "max": 420,
       "window_drag": true,
       "content": {

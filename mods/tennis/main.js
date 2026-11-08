@@ -13,7 +13,8 @@ const QUIET = new Set(["idle", "unknown"]);
 const COURT_PRIORITY = { blocked: 0, working: 1, done: 2, idle: 3, unknown: 4 };
 const BALL = "#dfff4f", BALL_EDGE = "#a8c225";
 const PLAYER_W = 46, PLAYER_H = 57, PLAYER_SPACING = 132, MIN_PLAYER_SPACING = 66, LABEL_W = 180, PLAYER_LABEL_REACH = (LABEL_W - PLAYER_W) / 2 + 8, RALLY_MS = 1800;
-const COURT_BLOCK = "tennis-court", COURT_H = 230, FOLDED_COURT_H = 32;
+const WINDOW_BUTTONS_MIDDLE = 19, TOP_ROW_H = 20;
+const COURT_BLOCK = "tennis-court", COURT_H = 230, FOLDED_COURT_H = WINDOW_BUTTONS_MIDDLE * 2;
 const BENCH_AFTER = 10, SEAT_W = 48, BENCH_ROW_H = 78, WOOD = "#b07a45", WOOD_DARK = "#7a5130";
 
 const courtNow = () => {
@@ -41,6 +42,7 @@ export default class Tennis extends View {
   init() {
     this.size = { width: 1200, height: COURT_H };
     this.courtFolded = JSON.parse(localStorage.getItem("tennis.court.folded") ?? "false");
+    if (!props()?.role && this.courtFolded) run("layout.resize", { id: COURT_BLOCK, px: FOLDED_COURT_H });
   }
 
   render() {
@@ -120,21 +122,21 @@ export default class Tennis extends View {
     return div().id("court").relative().size_full().overflow_hidden().bg(c.outside)
       .on_size_change((size, cx) => { this.size = size; cx.notify(); })
       .children(surface).children(lines).children(netParts)
-      .child(h_flex().absolute().left(titleX).top(my / 2 - 9).gap(8).items_center()
+      .child(h_flex().absolute().left(titleX).top(WINDOW_BUTTONS_MIDDLE - TOP_ROW_H / 2).h(TOP_ROW_H).gap(8).items_center()
         .child(div().size(10).rounded(5).bg(BALL))
         .child(div().text_size(14).font_weight(800).text_color("#ffffff").child(c.venue))
         .child(div().text_size(13).text_color("#ffffffb0").child(active?.name ?? "")))
-      .child(div().absolute().right(W - cl - cw).top(my / 2 - 9).text_size(13).font_weight(700).text_color(umpire.color)
+      .child(h_flex().absolute().right(W - cl - cw).top(WINDOW_BUTTONS_MIDDLE - TOP_ROW_H / 2).h(TOP_ROW_H).items_center().text_size(13).font_weight(700).text_color(umpire.color)
         .when(umpire.alarm, (el) => el.id("umpire").loop("opacity", { from: 0.55, to: 1, period: 900 }))
         .child(umpire.text))
-      .child(div().absolute().right(8).top(6).child(this.foldButton("up")))
+      .child(div().absolute().right(8).top(WINDOW_BUTTONS_MIDDLE - 10).child(this.foldButton("up")))
       .when(list.length === 0, (el) => el.child(v_flex().absolute().left(cl).top(ct + ch / 2 - 12).w(cw).items_center()
         .child(div().px(12).py(4).rounded(10).bg("#00000055").text_size(13).font_weight(600).text_color("#ffffff")
           .child("No players on court yet. Start an agent to serve."))))
       .children([...left, ...right].map((p) => this.player(p, t)))
       .when(rally !== null, (el) => el.child(this.ball(rally[0], rally[1])))
       .when(showBench, (el) => el
-        .child(h_flex().absolute().left(benchX).top(my / 2 - 9).gap(6).items_center()
+        .child(h_flex().absolute().left(benchX).top(WINDOW_BUTTONS_MIDDLE - TOP_ROW_H / 2).h(TOP_ROW_H).gap(6).items_center()
           .child(div().text_size(12).font_weight(800).text_color("#ffffff").child("BENCH"))
           .child(div().text_size(12).text_color("#ffffffb0").child(String(benched.length))))
         .children(this.bench(benched, benchX, ct, benchW, ch, t)))
