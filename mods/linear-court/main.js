@@ -7,8 +7,18 @@ const LINEAR_API = "https://api.linear.app/graphql";
 const REFRESH_MS = 60000;
 const CHANGE_CHECK_MS = 1000;
 const CHANGED_KEY = "linear.changed";
-const BALL = "#dfff4f";
-const tennisBall = (size) => image("mods/tennis/players/ball.svg").size(size);
+const SPORTS = {
+  tennis: {
+    ball: "mods/tennis/players/ball.svg", color: "#dfff4f", title: "Order of play", start: "SERVE", column: "tennis-linear",
+    call: { working: "Rally", blocked: "Challenge", done: "Point", idle: "Ready", unknown: "Warm-up" },
+  },
+  soccer: {
+    ball: "mods/soccer/players/ball.svg", color: "#ffffff", title: "Team sheet", start: "KICK OFF", column: "soccer-linear",
+    call: { working: "Attack", blocked: "VAR", done: "Goal", idle: "Warm-up", unknown: "Warm-up" },
+  },
+};
+const sport = () => SPORTS[props()?.sport] ?? SPORTS.tennis;
+const sportBall = (size) => image(sport().ball).size(size);
 const LINEAR_ICON = "mods/linear-court/linear.svg";
 const LINEAR_PURPLE = "#5e6ad2";
 const SERVE_CONFIG = "mods/linear-court/serve.json";
@@ -16,7 +26,6 @@ const SERVE_DEFAULTS = { agent: ["claude"], base: "main", repos: [] };
 const STATE_TYPE_ORDER = { started: 0, unstarted: 1, backlog: 2, triage: 3, completed: 4, canceled: 5 };
 const HIDDEN_STATE_TYPES = ["completed", "canceled", "duplicate"];
 const URGENCY = ["blocked", "done", "working", "idle", "unknown"];
-const CALL = { working: "Rally", blocked: "Challenge", done: "Point", idle: "Ready", unknown: "Warm-up" };
 const PRIORITIES = [
   { value: 1, label: "Urgent" },
   { value: 2, label: "High" },
@@ -25,7 +34,6 @@ const PRIORITIES = [
   { value: 0, label: "None" },
 ];
 const MENU_W = 340, MENU_H = 700;
-const PANEL_COLUMN = "tennis-linear";
 const PANEL_W = 300, RAIL_W = 36;
 const ISSUES_QUERY = `query {
   viewer {
@@ -187,6 +195,7 @@ export default class LinearCourt extends View {
       height: MENU_H,
       props: {
         role: "menu",
+        sport: props()?.sport,
         issue: { id: issue.id, identifier: issue.identifier, title: issue.title, url: issue.url, priority: issue.priority, stateId: issue.state.id, branchName: issue.branchName },
         states: (this.states[issue.team.id] ?? []).filter((s) => s.type !== "canceled" && s.type !== "duplicate"),
       },
@@ -203,7 +212,7 @@ export default class LinearCourt extends View {
 
   marker(agent, t) {
     const key = agent.address;
-    if (agent.status === "working") return div().id(`issue-mark-${key}`).relative().size(8).child(tennisBall(8)).loop("top", { from: 2, to: -2, period: 560 });
+    if (agent.status === "working") return div().id(`issue-mark-${key}`).relative().size(8).child(sportBall(8)).loop("top", { from: 2, to: -2, period: 560 });
     if (agent.status === "blocked") return div().id(`issue-mark-${key}`).size(8).rounded(4).bg(t.blocked).loop("opacity", { from: 0.35, to: 1, period: 700 });
     if (agent.status === "done") return div().size(8).rounded(4).border(2).border_color(t.done);
     return div().size(7).rounded(4).bg(t.idle);
@@ -234,7 +243,7 @@ export default class LinearCourt extends View {
         .child(h_flex().gap(6).items_center().text_size(10.5)
           .child(div().text_color(t.dim).child(issue.identifier))
           .when(Boolean(agent), (el) => el.child(div().font_weight(700)
-            .text_color(agent.status === "working" ? t.working : t[agent.status] ?? t.muted).child(CALL[agent.status] ?? "")))
+            .text_color(agent.status === "working" ? t.working : t[agent.status] ?? t.muted).child(sport().call[agent.status] ?? "")))
           .child(div().flex_1())
           .when(Boolean(issue.branchName), (el) => el.child(div().id(`issue-branch-${issue.identifier}`).flex_none().px(5).rounded(4)
             .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.raised).text_color(t.foreground))
@@ -387,10 +396,10 @@ export default class LinearCourt extends View {
       .hover((s) => s.opacity(0.85))
       .on_click(onClick)
       .child(text);
-    return v_flex().mx(6).p(8).gap(6).rounded(8).bg(tint(BALL, "14", t.raised)).border(1).border_color(tint(BALL, "40", t.border))
+    return v_flex().mx(6).p(8).gap(6).rounded(8).bg(tint(sport().color, "14", t.raised)).border(1).border_color(tint(sport().color, "40", t.border))
       .child(h_flex().gap(6).items_center()
-        .child(div().size(8).flex_none().child(tennisBall(8)))
-        .child(div().text_size(10).font_weight(800).text_color(t.foreground).child("SERVE"))
+        .child(div().size(8).flex_none().child(sportBall(8)))
+        .child(div().text_size(10).font_weight(800).text_color(t.foreground).child(sport().start))
         .child(div().flex_1().min_w(0).truncate().text_size(10.5).text_color(t.dim).child(issue.branchName ?? "no branch name in Linear")))
       .when(Boolean(here) && Boolean(this.serve), (el) => el.child(button("menu-serve-here", `New Claude Code tab in ${here?.name}`, true, (_e, cx) => this.serveHere(cx, here))))
       .child(this.serveRepos(here, button, t));
@@ -480,7 +489,7 @@ export default class LinearCourt extends View {
   togglePanel(cx) {
     this.collapsed = !this.collapsed;
     localStorage.setItem("linear.collapsed", JSON.stringify(this.collapsed));
-    run("layout.resize", { id: PANEL_COLUMN, px: this.collapsed ? RAIL_W : PANEL_W });
+    run("layout.resize", { id: sport().column, px: this.collapsed ? RAIL_W : PANEL_W });
     cx.notify();
   }
 
@@ -506,7 +515,7 @@ export default class LinearCourt extends View {
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().h(31).flex_none().pl(14).pr(8).gap(8).items_center().text_size(11.5).text_color(t.dim)
         .child(svg(LINEAR_ICON).size(13).flex_none().text_color(LINEAR_PURPLE))
-        .child(div().font_weight(700).text_color(t.foreground).child("Order of play"))
+        .child(div().font_weight(700).text_color(t.foreground).child(sport().title))
         .when(Boolean(this.issues), (el) => el.child(div().child(String(this.issues.length))))
         .child(div().flex_1())
         .child(div().id("linear-collapse").p(3).rounded(4).cursor_pointer().tooltip("Hide the Linear panel")
