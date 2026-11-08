@@ -1,4 +1,4 @@
-// Derived from the `spaces` mod shipped with Herdr (Apache-2.0, https://github.com/herdrdev/herdr-app). Modified: with props role "agents", it shows agents grouped by status (Rally, Challenge, Ready, Point) instead of the spaces; the Spaces header and each repo's worktrees fold; each space shows its most urgent agent's status marker.
+// Derived from the `spaces` mod shipped with Herdr (Apache-2.0, https://github.com/herdrdev/herdr-app). Modified: with props role "agents", it shows agents grouped by status (Rally, Challenge, Ready, Point) instead of the spaces; the Spaces header and each repo's worktrees fold; each space shows its most urgent agent's status marker; with props role "you", it shows the user's name and a settings button.
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, props, spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { agents, props, spaces, machines, panes, run, openOverlay, exec, hc, home, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -60,6 +60,17 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
+    if (props()?.role === "you") {
+      this.playerName = home().split("/").pop();
+      cx.spawn(async (cx) => {
+        try {
+          const r = await exec("id", ["-F"]);
+          if (r.code === 0 && r.stdout.trim()) this.playerName = r.stdout.trim();
+        } catch {}
+        cx.notify();
+      });
+      return;
+    }
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -535,8 +546,23 @@ export default class Spaces extends View {
     cx.notify();
   }
 
+  you(t) {
+    const name = this.playerName ?? "";
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => [...w][0].toUpperCase()).join("");
+    return h_flex().size_full().pl(12).pr(8).gap(9).items_center().bg(t.chrome)
+      .child(h_flex().size(24).flex_none().rounded(12).bg(BALL).items_center().justify_center()
+        .text_size(10).font_weight(800).text_color("#10140c").child(initials))
+      .child(div().flex_1().min_w(0).truncate().text_size(12.5).font_weight(600).text_color(t.foreground).child(name))
+      .child(h_flex().id("settings").size(26).flex_none().rounded(6).items_center().justify_center().cursor_pointer()
+        .text_color(t.dim).hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .tooltip("Settings")
+        .on_click(() => run("app.settings"))
+        .child(svg("mods/workspace-chrome/settings.svg").size(15)));
+  }
+
   render() {
     const t = theme();
+    if (props()?.role === "you") return this.you(t);
     this.spaceStatus = {};
     for (const a of agents()) {
       const current = this.spaceStatus[a.space];

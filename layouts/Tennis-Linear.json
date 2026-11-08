@@ -88,6 +88,21 @@
               "content": {
                 "mod": "tennis-spaces"
               }
+            },
+            {
+              "id": "tennis-you",
+              "type": "block",
+              "size": {
+                "px": 44
+              },
+              "min": 44,
+              "max": 44,
+              "content": {
+                "mod": "tennis-spaces",
+                "props": {
+                  "role": "you"
+                }
+              }
             }
           ]
         },
