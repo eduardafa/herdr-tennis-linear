@@ -2,7 +2,7 @@
 
 The [Tennis](https://github.com/eduardafa/herdr-tennis) layout for the [Herdr app](https://herdr.dev), with your Linear issues beside it: see which issue each agent is playing, change issues without leaving Herdr, and serve one to a new agent in a fresh worktree.
 
-![Tennis + Linear](preview.png?v=1)
+![Tennis + Linear](preview.png?v=2)
 
 ## Install
 
