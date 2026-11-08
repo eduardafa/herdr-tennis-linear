@@ -38,6 +38,7 @@ const FALLBACK = 60000;
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
 const BALL = "#dfff4f";
+const tennisBall = (size) => image("mods/tennis/players/ball.svg").size(size);
 const GROUPS = [
   { key: "rally", label: "Rally", statuses: ["working"], color: "working" },
   { key: "challenge", label: "Challenge", statuses: ["blocked"], color: "blocked" },
@@ -465,7 +466,7 @@ export default class Spaces extends View {
     if (group.key === "rally") {
       return div().relative().w(size + 18).h(size + 4).flex_none()
         .child(div().absolute().left((size + 18) / 2 - 1).top(0).w(2).h(size + 4).bg(t.dim))
-        .child(div().id(`group-mark-${group.key}-${n}`).absolute().top(2).size(size).rounded(size / 2).bg(BALL)
+        .child(div().id(`group-mark-${group.key}-${n}`).absolute().top(2).size(size).child(tennisBall(size))
           .when(n >= 0, (ball) => ball.loop("left", { from: 0, to: 18, period: 1200 })));
     }
     if (group.key === "challenge") {
@@ -477,12 +478,12 @@ export default class Spaces extends View {
     if (group.key === "point") {
       return div().size(size + 2).flex_none().rounded((size + 2) / 2).border(2).border_color(color);
     }
-    return div().size(size).flex_none().rounded(size / 2).bg(BALL).opacity(0.55);
+    return div().size(size).flex_none().opacity(0.55).child(tennisBall(size));
   }
 
   agentMark(group, a, n, t) {
     if (group.key === "rally") {
-      return div().id(`agent-mark-${a.address}`).relative().size(8).rounded(4).bg(BALL)
+      return div().id(`agent-mark-${a.address}`).relative().size(8).child(tennisBall(8))
         .loop("top", { from: 1, to: -3, period: 520 + (n % 4) * 60 });
     }
     if (group.key === "challenge") {
@@ -533,7 +534,7 @@ export default class Spaces extends View {
   }
 
   statusMark(status, key, t) {
-    if (status === "working") return div().id(`space-mark-${key}`).relative().size(8).rounded(4).bg(BALL).loop("top", { from: 2, to: -2, period: 560 });
+    if (status === "working") return div().id(`space-mark-${key}`).relative().size(8).child(tennisBall(8)).loop("top", { from: 2, to: -2, period: 560 });
     if (status === "blocked") return div().id(`space-mark-${key}`).size(8).rounded(4).bg(t.blocked).loop("opacity", { from: 0.35, to: 1, period: 700 });
     if (status === "done") return div().size(8).rounded(4).border(2).border_color(t.done);
     return div().size(7).rounded(4).bg(t.idle);

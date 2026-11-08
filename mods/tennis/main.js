@@ -12,11 +12,12 @@ const COURTS = [
 const CALL = { working: "Rally", blocked: "Challenge", done: "Point", idle: "Ready", unknown: "Warm-up" };
 const QUIET = new Set(["idle", "unknown"]);
 const COURT_PRIORITY = { blocked: 0, working: 1, done: 2, idle: 3, unknown: 4 };
-const BALL = "#dfff4f", BALL_EDGE = "#a8c225";
+const BALL = "#dfff4f";
 const PLAYER_W = 46, PLAYER_H = 57, PLAYER_SPACING = 132, MIN_PLAYER_SPACING = 66, LABEL_W = 180, PLAYER_LABEL_REACH = (LABEL_W - PLAYER_W) / 2 + 8, RALLY_MS = 1800;
 const WINDOW_BUTTONS_MIDDLE = 19, TOP_ROW_H = 20;
 const COURT_BLOCK = "tennis-court", COURT_H = 230, FOLDED_COURT_H = WINDOW_BUTTONS_MIDDLE * 2;
 const ART = "mods/tennis/players";
+const tennisBall = (size) => image(`${ART}/ball.svg`).size(size);
 const SPACE_COLOR = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 const SKIN = ["#f3d0b0", "#e8b98f", "#d29a6c", "#b07a4f", "#8a5a36", "#603c24"];
 const HAIR = ["#1f1712", "#3b2618", "#5a3a22", "#8a5a2b", "#c99a4b", "#a8462a", "#d8d2c4"];
@@ -69,6 +70,8 @@ const looks = (a) => {
   const kind = hash(`${key}kind`) % 2 ? "woman" : "man";
   return {
     kind,
+    top: kind === "woman" ? "fitted" : hash(`${key}top`) % 2 ? "tank" : "tee",
+    hat: kind === "woman" ? "headband" : hash(`${key}cap`) % 2 ? "cap-back" : "cap",
     shirt: shirtOnCourt(shirt, courtNow()),
     band: "#ffffff",
     skin: SKIN[hash(`${key}skin`) % SKIN.length],
@@ -181,7 +184,7 @@ export default class Tennis extends View {
       .on_size_change((size, cx) => { this.size = size; cx.notify(); })
       .children(surface).children(lines).children(netParts)
       .child(h_flex().absolute().left(titleX).top(WINDOW_BUTTONS_MIDDLE - TOP_ROW_H / 2).h(TOP_ROW_H).gap(8).items_center()
-        .child(div().size(10).rounded(5).bg(BALL))
+        .child(tennisBall(10))
         .child(div().text_size(14).font_weight(800).text_color("#ffffff").child(c.venue))
         .child(div().text_size(13).text_color("#ffffffb0").child(active?.name ?? "")))
       .child(h_flex().absolute().right(W - cl - cw).top(WINDOW_BUTTONS_MIDDLE - TOP_ROW_H / 2).h(TOP_ROW_H).items_center().text_size(13).font_weight(700).text_color(umpire.color)
@@ -257,7 +260,7 @@ export default class Tennis extends View {
     const umpire = umpireCall(list, t);
     const active = spaces().find((s) => s.active);
     return h_flex().id("court").size_full().pl(90).pr(8).gap(8).items_center().bg(c.outside)
-      .child(div().size(10).flex_none().rounded(5).bg(BALL))
+      .child(div().size(10).flex_none().child(tennisBall(10)))
       .child(div().flex_none().text_size(13).font_weight(800).text_color("#ffffff").child(c.venue))
       .child(div().min_w(0).truncate().text_size(12.5).text_color("#ffffffb0").child(active?.name ?? ""))
       .child(div().flex_1())
@@ -271,24 +274,28 @@ export default class Tennis extends View {
     const look = looks(a);
     return div().relative().w(40).h(52)
       .child(layer("bench-skin", 40, 52, look.skin))
-      .child(layer(`bench-shirt-${look.kind}`, 40, 52, look.shirt))
+      .child(layer(`bench-shirt-${look.top}`, 40, 52, look.shirt))
       .child(layer(`bench-hair-${look.style}`, 40, 52, look.hair))
-      .child(layer(`bench-band-${look.kind}`, 40, 52, look.band))
-      .child(layer(`bench-gear-${look.kind}`, 40, 52));
+      .child(layer(`bench-band-${look.hat}`, 40, 52, look.band))
+      .child(layer(`bench-gear-${look.kind}`, 40, 52))
+      .child(layer(`bench-collar-${look.top}`, 40, 52))
+      .when(look.kind === "man", (el) => el.child(layer(`bench-shade-${look.hat}`, 40, 52)));
   }
 
   playerFigure(a, side, swing, rallyKey) {
     const look = looks(a), s = side === "left" ? "r" : "l", pose = POSE[a.status] ?? "ready";
     const arms = (frame) => div().absolute().left(0).top(0).size_full()
       .child(layer(`arms-${frame}-${s}`, PLAYER_W, PLAYER_H, look.skin))
-      .when(look.kind === "man", (el) => el.child(layer(`sleeves-${frame}-${s}`, PLAYER_W, PLAYER_H, look.shirt)))
+      .when(look.top === "tee", (el) => el.child(layer(`sleeves-${frame}-${s}`, PLAYER_W, PLAYER_H, look.shirt)))
       .child(layer(`gear-${frame}-${s}`, PLAYER_W, PLAYER_H));
     const figure = div().id(`figure-${a.address}`).relative().w(PLAYER_W).h(PLAYER_H)
       .child(layer(`skin-${s}`, PLAYER_W, PLAYER_H, look.skin))
-      .child(layer(`shirt-${look.kind}-${s}`, PLAYER_W, PLAYER_H, look.shirt))
+      .child(layer(`shirt-${look.top}-${s}`, PLAYER_W, PLAYER_H, look.shirt))
       .child(layer(`hair-${look.style}-${s}`, PLAYER_W, PLAYER_H, look.hair))
-      .child(layer(`band-${look.kind}-${s}`, PLAYER_W, PLAYER_H, look.band))
-      .child(layer(`gear-${look.kind}-${s}`, PLAYER_W, PLAYER_H));
+      .child(layer(`band-${look.hat}-${s}`, PLAYER_W, PLAYER_H, look.band))
+      .child(layer(`gear-${look.kind}-${s}`, PLAYER_W, PLAYER_H))
+      .child(layer(`collar-${look.top}-${s}`, PLAYER_W, PLAYER_H))
+      .when(look.kind === "man", (el) => el.child(layer(`shade-${look.hat}-${s}`, PLAYER_W, PLAYER_H)));
     if (pose !== "rally") return figure.child(arms(pose));
     if (!swing) return figure.child(arms("rally-b"));
     const nearBall = swing === "hit" ? { from: 1, to: 0, easing: "ease-out" } : { from: 0, to: 1, easing: "ease-in" };
@@ -310,8 +317,8 @@ export default class Tennis extends View {
     if (QUIET.has(a.status)) figure = figure.loop("top", { from: 0, to: -1.5, period: 1400 });
     if (a.status === "idle" || a.status === "unknown") {
       figure = figure.child(div().id(`bounce-${a.address}`).absolute()
-        .left(side === "left" ? PLAYER_W * 0.62 : PLAYER_W * 0.2).top(PLAYER_H - 10).size(8).rounded(4)
-        .bg(BALL).border(1).border_color(BALL_EDGE)
+        .left(side === "left" ? PLAYER_W * 0.62 : PLAYER_W * 0.2).top(PLAYER_H - 10).size(8)
+        .child(tennisBall(8))
         .loop("top", { from: PLAYER_H - 10, to: PLAYER_H - 26, period: 900, easing: "ease-out" }));
     }
     const badge = a.status === "blocked" || a.status === "done"
@@ -340,7 +347,7 @@ export default class Tennis extends View {
       .child(div().id(`rally-x-${rallyKey}`).absolute().left(from.x).top(0).w(1).h(1)
         .loop("left", { from: from.x, to: to.x, period: RALLY_MS, easing: "linear" })
         .child(div().absolute().left(-6).top(5).w(12).h(5).rounded(3).bg("#00000044"))
-        .child(div().id(`rally-arc-${rallyKey}`).absolute().left(-6).top(-6).size(12).rounded(6).bg(BALL).border(1).border_color(BALL_EDGE)
+        .child(div().id(`rally-arc-${rallyKey}`).absolute().left(-6).top(-6).size(12).child(tennisBall(12))
           .loop("top", { from: -6, to: -34, period: RALLY_MS / 2, easing: "ease-out" })));
   }
 
@@ -404,8 +411,9 @@ export default class Tennis extends View {
       .child(div().text_color(t.dim).truncate().child(pane?.branch ? `on ${pane.branch}` : ""))
       .child(div().flex_1())
       .when(Boolean(status), (el) => el.child(h_flex().gap(5).items_center()
-        .child(div().id(`dot-${props()?.pane}`).size(8).rounded(4).bg(status === "working" ? BALL : color)
-          .when(status === "working", (d) => d.loop("opacity", { from: 0.35, to: 1, period: 800 })))
+        .child(div().id(`dot-${props()?.pane}`).size(8).rounded(4)
+          .when(status !== "working", (d) => d.bg(color))
+          .when(status === "working", (d) => d.child(tennisBall(8)).loop("opacity", { from: 0.35, to: 1, period: 800 })))
         .child(div().font_weight(600).text_color(color).child(CALL[status] ?? status))));
   }
 }

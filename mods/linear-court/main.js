@@ -1,4 +1,4 @@
-import { View, div, svg } from "gpui-kit";
+import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { agents, spaces, panes, exec, run, theme, props, openOverlay, closeOverlay, notify, shared, setShared, home, appHome, readTextFile } from "herdr";
 
@@ -8,6 +8,7 @@ const REFRESH_MS = 60000;
 const CHANGE_CHECK_MS = 1000;
 const CHANGED_KEY = "linear.changed";
 const BALL = "#dfff4f";
+const tennisBall = (size) => image("mods/tennis/players/ball.svg").size(size);
 const LINEAR_ICON = "mods/linear-court/linear.svg";
 const LINEAR_PURPLE = "#5e6ad2";
 const SERVE_CONFIG = "mods/linear-court/serve.json";
@@ -202,7 +203,7 @@ export default class LinearCourt extends View {
 
   marker(agent, t) {
     const key = agent.address;
-    if (agent.status === "working") return div().id(`issue-mark-${key}`).relative().size(8).rounded(4).bg(BALL).loop("top", { from: 2, to: -2, period: 560 });
+    if (agent.status === "working") return div().id(`issue-mark-${key}`).relative().size(8).child(tennisBall(8)).loop("top", { from: 2, to: -2, period: 560 });
     if (agent.status === "blocked") return div().id(`issue-mark-${key}`).size(8).rounded(4).bg(t.blocked).loop("opacity", { from: 0.35, to: 1, period: 700 });
     if (agent.status === "done") return div().size(8).rounded(4).border(2).border_color(t.done);
     return div().size(7).rounded(4).bg(t.idle);
@@ -388,7 +389,7 @@ export default class LinearCourt extends View {
       .child(text);
     return v_flex().mx(6).p(8).gap(6).rounded(8).bg(tint(BALL, "14", t.raised)).border(1).border_color(tint(BALL, "40", t.border))
       .child(h_flex().gap(6).items_center()
-        .child(div().size(8).flex_none().rounded(4).bg(BALL))
+        .child(div().size(8).flex_none().child(tennisBall(8)))
         .child(div().text_size(10).font_weight(800).text_color(t.foreground).child("SERVE"))
         .child(div().flex_1().min_w(0).truncate().text_size(10.5).text_color(t.dim).child(issue.branchName ?? "no branch name in Linear")))
       .when(Boolean(here) && Boolean(this.serve), (el) => el.child(button("menu-serve-here", `New Claude Code tab in ${here?.name}`, true, (_e, cx) => this.serveHere(cx, here))))
