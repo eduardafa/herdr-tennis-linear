@@ -119,14 +119,14 @@ SKIN = (
     + f'<ellipse cx="18.2" cy="14.6" rx="1.8" ry="2.2" fill="{INK}"/>'
 )
 SHIRT = {
-    "tee": "M12.8 23.6q2-3.2 6.6-3.6q3.4 1.6 6.4 0q4.4.4 6.2 3.4l.8 19.8H12.2z",
-    "tank": "M14.2 22.6l2.8-2.2q4.6 3.2 9.8.2l2.8 2.2q1 5.6.6 9.6q1.8 5 2 10.6H11.6q.2-5.6 2-10.6q-.6-4 .6-9.8z",
+    "tee": "M10.4 24.4q1.4-3.8 8.8-4.4q3.4 1.6 6.4 0q7.6.6 9 4.4l-2.8 4.2l-.4 14.6H13.6l-.4-14.6z",
+    "tank": "M16.4 21.2L18.4 19.8Q22.1 23.2 25.8 19.8L27.8 21.2Q28.6 25 31.2 27.4L31.6 43.2H13L13.4 27.4Q16 25 16.4 21.2Z",
     "fitted": "M14.8 22.6l2.4-2.2q4.6 3.4 9.4.2l2.6 2.2q1.2 6 .6 10q2 4.4 2.4 9.4H12.4q.4-5 2.4-9.4q-.8-4.2 0-10.2z",
 }
 TRIM = {
     "tee": f'<path d="M19.4 20q2.8 2.8 6.4 0l-1.4 3.4h-3.6z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width=".5"/>',
-    "tank": f'<path d="M17 20.4q4.8 3.4 9.8.2" fill="none" stroke="{CLOTH}" stroke-width="1.1"/>'
-    f'<path d="M14.4 22.6q1.2 5.2-.2 9.6M29.6 22.6q-1 5.2.4 9.6" fill="none" stroke="{CLOTH}" stroke-width=".8"/>',
+    "tank": f'<path d="M18.4 20.2Q22.1 23.6 25.8 20.2" fill="none" stroke="{CLOTH}" stroke-width="1.1"/>'
+    f'<path d="M16.4 21.4Q16 25.2 13.6 27.4M27.8 21.4Q28.2 25.2 30.8 27.4" fill="none" stroke="{CLOTH}" stroke-width=".8"/>',
     "fitted": f'<path d="M17.2 20.4q4.6 3.4 9.4.2" fill="none" stroke="{CLOTH}" stroke-width="1.1"/>',
 }
 
@@ -140,8 +140,8 @@ def collar(top):
 
 
 BOTTOMS = {
-    "man": f'<path d="M12 42.4h21.2l1 11.6h-9.8l-1.8-4.6l-1.8 4.6H11.2z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width="1"/>'
-    f'<path d="M24.6 44v6" stroke="{CLOTH_EDGE}" stroke-width=".6"/>',
+    "man": f'<path d="M13.2 42.4h18.6l.8 11.6h-8.2l-1.6-4.6l-1.6 4.6H12.4z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width="1"/>'
+    f'<path d="M22.8 43.6v5" stroke="{CLOTH_EDGE}" stroke-width=".6"/>',
     "woman": f'<path d="M12.2 42.2h20.4l4.6 9.6q-12.6 2.4-25.8 0z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width="1"/>'
     f'<path d="M16.4 43.4l-2.6 8.6M21 43.4l-.8 9.2M25.6 43.4l1.2 9.2M29.8 43.4l3.2 8.6" stroke="{CLOTH_EDGE}" stroke-width=".6"/>',
 }
@@ -176,6 +176,10 @@ BODY = {
     "band-cap-back": f'<path d="{CAP_DOME}" fill="{INK}"/>'
     f'<path d="M15 9.8q-5.8-.6-9.6 2.2q.4 1 1.6 1.2q3.6-1 8.2-.6z" fill="{INK}"/>',
 }
+BODY["shoulders"] = (
+    f'<path d="M16.8 20.6Q10.2 20.4 9.4 25.6Q10.8 29.4 14.6 28.8Q16.6 25 16.8 20.6Z" fill="{INK}"/>'
+    f'<path d="M27.4 20.6Q34 20.4 34.8 25.6Q33.4 29.4 29.6 28.8Q27.6 25 27.4 20.6Z" fill="{INK}"/>'
+)
 for top, path in SHIRT.items():
     BODY[f"shirt-{top}"] = f'<path d="{path}" fill="{INK}"/>'
     BODY[f"collar-{top}"] = collar(top)
@@ -185,6 +189,7 @@ for kind in ("man", "woman"):
     BODY[f"gear-{kind}"] = GROUND + socks() + LEG_SHADE + sneaker(14.6, 66.2) + sneaker(31.2, 66) + BOTTOMS[kind] + FACE
 
 BACK, FRONT = (15.2, 24.6), (29.6, 24.6)
+BROADER = 2.6
 POSES = {
     "ready": (
         [BACK, (15.6, 32.4), (23.4, 36.6)],
@@ -214,6 +219,11 @@ POSES = {
 }
 
 
+def broadened(points, dx):
+    (sx, sy), (ex, ey), *rest = points
+    return [(round(sx + dx, 2), sy), (round(ex + dx / 2, 2), ey), *rest]
+
+
 def finger(hand):
     hx, hy = hand
     return f'<path d="M{hx} {hy - 1}V{hy - 6}" stroke="{INK}" stroke-width="2" stroke-linecap="round"/>'
@@ -225,9 +235,12 @@ for side, flip in (("r", False), ("l", True)):
         write(f"{name}-{side}", W, H, wrap(body))
     for pose, (back, front, gear) in POSES.items():
         extra = finger(back[-1]) if pose == "challenge" else ""
-        write(f"arms-{pose}-{side}", W, H, wrap(arm(back) + arm(front) + extra))
-        write(f"sleeves-{pose}-{side}", W, H, wrap(sleeve(back) + sleeve(front)))
-        write(f"gear-{pose}-{side}", W, H, wrap(wristband(front) + gear(front[-1])))
+        for kind, reach in (("woman", 0), ("man", BROADER)):
+            b, f = broadened(back, -reach), broadened(front, reach)
+            write(f"arms-{pose}-{kind}-{side}", W, H, wrap(arm(b) + arm(f) + extra))
+            write(f"gear-{pose}-{kind}-{side}", W, H, wrap(wristband(f) + gear(f[-1])))
+            if kind == "man":
+                write(f"sleeves-{pose}-{side}", W, H, wrap(sleeve(b) + sleeve(f)))
 
 BW, BH = 40, 52
 BHEAD = (20, 10.2, 7.6)
@@ -237,27 +250,25 @@ BENCH_FACE = (
     f'<path d="M18.4 14.2q1.6 1.2 3.2 0" fill="none" stroke="{MOUTH}" stroke-width=".85" stroke-linecap="round"/>'
     f'<ellipse cx="15.6" cy="13.4" rx="1.4" ry=".9" fill="{BLUSH}" opacity=".32"/><ellipse cx="24.4" cy="13.4" rx="1.4" ry=".9" fill="{BLUSH}" opacity=".32"/>'
 )
-BENCH_ARMS = [[(11.6, 19.4), (8.4, 26.2), (8.2, 32.6)], [(28.4, 19.4), (31.6, 26.2), (31.8, 32.6)]]
+BENCH_ARMS = {
+    "woman": [[(11.6, 19.4), (8.4, 26.2), (8.2, 32.6)], [(28.4, 19.4), (31.6, 26.2), (31.8, 32.6)]],
+    "man": [[(10.2, 19.4), (7.4, 26.2), (7.6, 32.6)], [(29.8, 19.4), (32.6, 26.2), (32.4, 32.6)]],
+}
 BENCH_SHIRT = {
-    "tee": f'<path d="M11 19.6q1.6-2.8 6.2-3.2q2.8 1.4 5.6 0q4.6.4 6.2 3.2l1 12.4H10z" fill="{INK}"/>'
-    + sleeve(BENCH_ARMS[0]) + sleeve(BENCH_ARMS[1]),
-    "tank": f'<path d="M13 18.6l2.2-1.8q4.8 3 9.6 0l2.2 1.8q.8 5 .6 8.4q1.4 2.6 1.6 5H10.8q.2-2.4 1.6-5q-.4-3.4.6-8.4z" fill="{INK}"/>',
+    "tee": f'<path d="M9 20q1.8-3.6 8.2-3.8q2.8 1.4 5.6 0q6.4.2 8.2 3.8l-2.4 3.4l-.2 8.6H11.6l-.2-8.6z" fill="{INK}"/>'
+    + sleeve(BENCH_ARMS["man"][0]) + sleeve(BENCH_ARMS["man"][1]),
+    "tank": f'<path d="M14.8 17.6L16.8 16.4Q20 19.4 23.2 16.4L25.2 17.6Q25.8 20.8 27.8 22.4L28.4 32H11.6L12.2 22.4Q14.2 20.8 14.8 17.6Z" fill="{INK}"/>',
     "fitted": f'<path d="M13.4 18.6l2-1.8q4.6 3 9.2 0l2 1.8q.8 5.4.4 8.6q2 2.6 2.4 4.8H10.6q.4-2.2 2.4-4.8q-.4-3.4.4-8.6z" fill="{INK}"/>',
 }
 BENCH_TRIM = {
     "tee": f'<path d="M17.4 16.6q2.6 2.6 5.2 0l-1 3h-3.2z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width=".5"/>',
-    "tank": f'<path d="M15.2 16.8q4.8 3 9.6 0" fill="none" stroke="{CLOTH}" stroke-width="1"/>'
-    f'<path d="M13.2 18.6q.8 4.4-.2 8.2M26.8 18.6q-.8 4.4.2 8.2" fill="none" stroke="{CLOTH}" stroke-width=".7"/>',
+    "tank": f'<path d="M16.8 16.8Q20 19.8 23.2 16.8" fill="none" stroke="{CLOTH}" stroke-width="1"/>'
+    f'<path d="M14.8 17.8Q14.4 21 12.4 22.4M25.2 17.8Q25.6 21 27.6 22.4" fill="none" stroke="{CLOTH}" stroke-width=".7"/>',
     "fitted": f'<path d="M15.4 16.8q4.6 3 9.2 0" fill="none" stroke="{CLOTH}" stroke-width="1"/>',
 }
-BENCH_DOME = "M12.2 8.6q0-7.6 7.8-7.6t7.8 7.6z"
-BENCH_CAP_SEAMS = f'<circle cx="20" cy="1.4" r=".9" fill="{SHADE}" fill-opacity=".2"/><path d="M20 1.6v6.6" stroke="{SHADE}" stroke-opacity=".12" stroke-width=".6"/>'
+BENCH_DOME = "M12.4 7q0-6.4 7.6-6.4t7.6 6.4z"
+BENCH_CAP_SEAMS = f'<circle cx="20" cy="1" r=".9" fill="{SHADE}" fill-opacity=".2"/><path d="M20 1.2v5.4" stroke="{SHADE}" stroke-opacity=".12" stroke-width=".6"/>'
 BENCH = {
-    "bench-skin": bent([(14.6, 36), (14.6, 45.4)], 5) + bent([(25.4, 36), (25.4, 45.4)], 5)
-    + f'<rect x="17.2" y="14.6" width="5.6" height="4.4" fill="{INK}"/>'
-    + f'<circle cx="{BHEAD[0]}" cy="{BHEAD[1]}" r="{BHEAD[2]}" fill="{INK}"/>'
-    + f'<ellipse cx="12.4" cy="11.2" rx="1.4" ry="2" fill="{INK}"/><ellipse cx="27.6" cy="11.2" rx="1.4" ry="2" fill="{INK}"/>'
-    + arm(BENCH_ARMS[0]) + arm(BENCH_ARMS[1]),
     "bench-hair-short": f'<path d="M12.4 10.4q-.6-8.4 7.6-8.6q8.2.2 7.6 8.6q-1-3.2-3.2-4q-4.4 1.6-9.6.4q-1.8 1.2-2.4 3.6z" fill="{INK}"/>',
     "bench-hair-buzz": f'<path d="M12.8 8.6q.2-6.8 7.2-6.8t7.2 6.8q-3-2.2-7.2-2.2t-7.2 2.2z" fill="{INK}"/>',
     "bench-hair-ponytail": f'<path d="M12.4 10.4q-.6-8.4 7.6-8.6q8.2.2 7.6 8.6q-1-3.2-3.2-4q-4.4 1.6-9.6.4q-1.8 1.2-2.4 3.6z" fill="{INK}"/>'
@@ -265,19 +276,23 @@ BENCH = {
     "bench-hair-bun": f'<path d="M12.4 10.4q-.6-8.4 7.6-8.6q8.2.2 7.6 8.6q-1-3.2-3.2-4q-4.4 1.6-9.6.4q-1.8 1.2-2.4 3.6z" fill="{INK}"/>'
     f'<circle cx="20" cy="1.8" r="3.2" fill="{INK}"/>',
     "bench-band-headband": f'<path d="M12.8 7.4q7.2-3.6 14.4 0" fill="none" stroke="{INK}" stroke-width="2.2" stroke-linecap="round"/>',
-    "bench-band-cap": f'<path d="{BENCH_DOME}" fill="{INK}"/><ellipse cx="20" cy="8.6" rx="9" ry="2" fill="{INK}"/>',
-    "bench-band-cap-back": f'<path d="{BENCH_DOME}" fill="{INK}"/><path d="M12.2 8.6q7.8 1.6 15.6 0v-1.2H12.2z" fill="{INK}"/>',
+    "bench-band-cap": f'<path d="{BENCH_DOME}" fill="{INK}"/><ellipse cx="20" cy="7" rx="8.8" ry="1.7" fill="{INK}"/>',
+    "bench-band-cap-back": f'<path d="{BENCH_DOME}" fill="{INK}"/><path d="M12.4 7q7.6 1.4 15.2 0v-1.2H12.4z" fill="{INK}"/>',
     "bench-shade-cap": BENCH_CAP_SEAMS
-    + f'<path d="M11.4 8.6q8.6 2.2 17.2 0" fill="none" stroke="{SHADE}" stroke-opacity=".22" stroke-width=".8"/>',
+    + f'<path d="M11.6 7q8.4 2 16.8 0" fill="none" stroke="{SHADE}" stroke-opacity=".22" stroke-width=".8"/>',
     "bench-shade-cap-back": BENCH_CAP_SEAMS
-    + f'<path d="M12.2 8.4q7.8 1.6 15.6 0" fill="none" stroke="{SHADE}" stroke-opacity=".2" stroke-width=".7"/>'
-    + f'<path d="M17.2 9q2.8-4.2 5.6 0q-2.8.6-5.6 0z" fill="{SHADE}" fill-opacity=".32"/>',
+    + f'<path d="M12.4 6.8q7.6 1.4 15.2 0" fill="none" stroke="{SHADE}" stroke-opacity=".2" stroke-width=".7"/>'
+    + f'<path d="M17.4 7.6q2.6-3.6 5.2 0q-2.6.6-5.2 0z" fill="{SHADE}" fill-opacity=".32"/>',
 }
+BENCH["bench-shoulders"] = (
+    f'<path d="M15.2 17Q9.8 17 8.8 21.2Q9.8 24.2 12.8 23.6Q14.8 21 15.2 17Z" fill="{INK}"/>'
+    f'<path d="M24.8 17Q30.2 17 31.2 21.2Q30.2 24.2 27.2 23.6Q25.2 21 24.8 17Z" fill="{INK}"/>'
+)
 for top, body in BENCH_SHIRT.items():
     BENCH[f"bench-shirt-{top}"] = body
     BENCH[f"bench-collar-{top}"] = BENCH_TRIM[top]
 BENCH_BOTTOMS = {
-    "man": f'<path d="M10 31.4h20l.6 6.4h-8.8l-1.8-2.4l-1.8 2.4H9.4z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width=".9"/>',
+    "man": f'<path d="M11.4 31.4h17.2l.6 6.4h-7.8l-1.4-2.4l-1.4 2.4H10.8z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width=".9"/>',
     "woman": f'<path d="M10.4 31.2h19.2l3.4 6.2q-13 1.8-26 0z" fill="{CLOTH}" stroke="{CLOTH_EDGE}" stroke-width=".9"/>'
     f'<path d="M15 32.4l-1.6 5.6M20 32.4v6M25 32.4l1.6 5.6" stroke="{CLOTH_EDGE}" stroke-width=".55"/>',
 }
@@ -291,6 +306,13 @@ def bench_shoe(x):
 
 
 for kind in ("man", "woman"):
+    BENCH[f"bench-skin-{kind}"] = (
+        bent([(14.6, 36), (14.6, 45.4)], 5) + bent([(25.4, 36), (25.4, 45.4)], 5)
+        + f'<rect x="17.2" y="14.6" width="5.6" height="4.4" fill="{INK}"/>'
+        + f'<circle cx="{BHEAD[0]}" cy="{BHEAD[1]}" r="{BHEAD[2]}" fill="{INK}"/>'
+        + f'<ellipse cx="12.4" cy="11.2" rx="1.4" ry="2" fill="{INK}"/><ellipse cx="27.6" cy="11.2" rx="1.4" ry="2" fill="{INK}"/>'
+        + arm(BENCH_ARMS[kind][0]) + arm(BENCH_ARMS[kind][1])
+    )
     BENCH[f"bench-gear-{kind}"] = (
         f'<ellipse cx="20" cy="50.6" rx="14" ry="2.2" fill="{SHADE}" opacity=".22"/>'
         + f'<path d="M14.6 41.6v3.6M25.4 41.6v3.6" stroke="{CLOTH}" stroke-width="5" stroke-linecap="butt"/>'
