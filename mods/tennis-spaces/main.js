@@ -1,4 +1,4 @@
-// Derived from the `spaces` mod shipped with Herdr (Apache-2.0, https://github.com/herdrdev/herdr-app). Modified: with props role "agents", it shows agents grouped by status (Rally, Challenge, Ready, Point) instead of the spaces; the Spaces header and each repo's worktrees fold; each space shows its most urgent agent's status marker; with props role "you", it shows the user's name and a settings button.
+// Derived from the `spaces` mod shipped with Herdr (Apache-2.0, https://github.com/herdrdev/herdr-app). Modified: with props role "agents", it shows agents grouped by status (Rally, Challenge, Ready, Point) instead of the spaces; the Spaces header and each repo's worktrees fold; each space shows its most urgent agent's status marker; with props role "you", it shows the user's name and a settings button; Rally and Challenge agents show how long they have been in that status.
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
@@ -48,6 +48,9 @@ const GROUPS = [
 const SPACES_BLOCK = "tennis-spaces";
 const SPACE_URGENCY = ["blocked", "done", "working", "idle", "unknown"];
 const FOLDED_SPACES_H = 31;
+const TIMED = new Set(["working", "blocked"]);
+const minutes = (ms) => (ms < 60000 ? "<1m" : ms < 3600000 ? `${Math.floor(ms / 60000)}m`
+  : `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`);
 const tint = (color, alpha, fallback) => (/^#[0-9a-f]{6}$/i.test(color ?? "") ? color + alpha : fallback);
 
 // A space speaks up only when something in it needs you.
@@ -95,6 +98,21 @@ export default class Spaces extends View {
     this.foldedRepos = new Set(JSON.parse(localStorage.getItem("tennis.worktrees.folded") ?? "[]"));
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
+    this.statusSince = {};
+    if (props()?.role === "agents") {
+      cx.spawn(async (cx) => {
+        for (;;) {
+          for (const a of agents().filter((x) => TIMED.has(x.status))) {
+            try {
+              const term = JSON.parse((await hc(["get", a.address, "--json"])).stdout);
+              this.statusSince[a.address] = { status: term.status?.state ?? a.status, at: term.status_ms };
+            } catch {}
+          }
+          cx.notify();
+          await cx.sleep(15000);
+        }
+      });
+    }
     // `git status` walks the whole tree, on another machine a process there:
     // only when its answer could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
@@ -520,6 +538,9 @@ export default class Spaces extends View {
         .child(h_flex().size(14).flex_none().items_center().justify_center().child(this.agentMark(group, a, n, t)))
         .when(!collapsed, (el) => el
           .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(a.space_name))
+          .when(TIMED.has(a.status) && this.statusSince[a.address]?.status === a.status && Boolean(this.statusSince[a.address]?.at), (row) => row
+            .child(div().flex_none().text_size(11).font_weight(700).text_color(a.status === "blocked" ? t.blocked : t.dim)
+              .child(minutes(Date.now() - this.statusSince[a.address].at))))
           .when(Boolean(a.program?.icon), (row) => row.child(a.program.tint
             ? svg(a.program.icon).size(13).flex_none().text_color(a.program.color ?? t.dim)
             : image(a.program.icon).size(13).flex_none())));
