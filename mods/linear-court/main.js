@@ -225,12 +225,13 @@ export default class LinearCourt extends View {
     return div().size(7).rounded(4).bg(t.idle);
   }
 
-  // Sub-issues whose parent is also assigned to you nest under it, wherever the parent is grouped.
-  // The rest are roots: they get grouped by status or by project.
+  // By project, sub-issues whose parent is also assigned to you nest under it.
+  // By status, every issue stays in its own status group; sub-issues show their parent's ID instead.
   groups() {
     const issues = this.issues ?? [];
+    const byProject = this.groupBy === "project";
     const assigned = new Set(issues.map((i) => i.id));
-    const nested = (i) => Boolean(i.parent) && assigned.has(i.parent.id);
+    const nested = (i) => byProject && Boolean(i.parent) && assigned.has(i.parent.id);
     const kids = new Map();
     for (const issue of issues) {
       if (!nested(issue)) continue;
@@ -240,7 +241,6 @@ export default class LinearCourt extends View {
     for (const list of kids.values()) list.sort((a, b) => byWorkflow(a.state, b.state));
     this.kids = kids;
     const size = (i) => 1 + (kids.get(i.id) ?? []).reduce((n, k) => n + size(k), 0);
-    const byProject = this.groupBy === "project";
     const byKey = new Map();
     for (const issue of issues.filter((i) => !nested(i))) {
       const key = byProject ? `project:${issue.project?.id ?? "none"}` : issue.state.name;
@@ -303,7 +303,7 @@ export default class LinearCourt extends View {
   issueRow(issue, t, depth = 0, kids = []) {
     const agent = this.playing(issue);
     const showState = depth > 0 || this.groupBy === "project";
-    const orphan = depth === 0 && issue.parent && !this.issues.some((i) => i.id === issue.parent.id);
+    const orphan = depth === 0 && Boolean(issue.parent);
     return h_flex().id(`issue-${issue.identifier}`).flex_none().px(8).py(4).gap(9).items_start().rounded(6).cursor_pointer()
       .hover((s) => s.bg(t.hover))
       .on_click(() => exec("open", [issue.url]))
