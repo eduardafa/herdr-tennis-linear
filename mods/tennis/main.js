@@ -27,6 +27,7 @@ const HAIRSTYLES = { woman: ["ponytail", "bun"], man: ["short", "buzz"] };
 const WHITES = "#f4f4ee";
 const MIN_SHIRT_CONTRAST = 45, MIN_SHIRT_LIGHTNESS_GAP = 22, CONTRAST_SHIRTS = [WHITES, "#f2c94c"];
 const POSE = { working: "rally", blocked: "challenge", done: "point", idle: "ready", unknown: "ready" };
+const MACHINE_W = 28, MACHINE_H = 36, MACHINE_NOZZLE_Y = 20;
 const BENCH_AFTER = 10, SEAT_W = 48, BENCH_ROW_H = 78, WOOD = "#b07a45", WOOD_DARK = "#7a5130";
 
 const courtNow = () => {
@@ -182,10 +183,18 @@ export default class Tennis extends View {
       y: p.y + PLAYER_H * 0.6,
     });
     const hitter = left.find((p) => p.a.status === "working"), returner = right.find((p) => p.a.status === "working");
-    let rally = null;
+    let rally = null, machine = null;
     if (hitter && returner) rally = [racket(hitter), racket(returner)];
-    else if (hitter) rally = [racket(hitter), { x: cl + cw * 0.9, y: ct + ch / 2 }];
-    else if (returner) rally = [{ x: cl + cw * 0.1, y: ct + ch / 2 }, racket(returner)];
+    else if (hitter || returner) {
+      // Solo agent with no hitting partner: it drills against a ball machine behind the far baseline.
+      const solo = hitter ?? returner, side = hitter ? "right" : "left";
+      const shot = racket(solo);
+      const x = side === "right" ? cl + cw + 4 : cl - 4 - MACHINE_W;
+      const y = clamp(shot.y - MACHINE_NOZZLE_Y, ct + 4, ct + ch - MACHINE_H - 4);
+      machine = { side, x, y };
+      const nozzle = { x: side === "right" ? x + 1 : x + MACHINE_W - 1, y: y + MACHINE_NOZZLE_Y };
+      rally = hitter ? [shot, nozzle] : [nozzle, shot];
+    }
     const rallyKey = `${hitter?.a.address ?? "none"}-${returner?.a.address ?? "none"}`;
     const swing = (p) => (p === hitter ? "hit" : p === returner ? "return" : null);
 
@@ -207,6 +216,7 @@ export default class Tennis extends View {
       .when(list.length === 0, (el) => el.child(v_flex().absolute().left(cl).top(ct + ch / 2 - 12).w(cw).items_center()
         .child(div().px(12).py(4).rounded(10).bg("#00000055").text_size(13).font_weight(600).text_color("#ffffff")
           .child("No players on court yet. Start an agent to serve."))))
+      .when(machine !== null, (el) => el.child(this.ballMachine(machine, rallyKey)))
       .children([...left, ...right].map((p) => this.player(p, t, swing(p), rallyKey)))
       .when(rally !== null, (el) => el.child(this.ball(rally[0], rally[1], rallyKey)))
       .when(showBench, (el) => el
@@ -421,6 +431,25 @@ export default class Tennis extends View {
           .child(icon(a.program, 12))
           .child(div().text_size(11).font_weight(600).text_color("#ffffff").truncate().child(agentName(a))))
         .child(div().text_size(9.5).font_weight(700).text_color(QUIET.has(a.status) ? "#ffffffb0" : color).child(CALL[a.status] ?? "")));
+  }
+
+  ballMachine({ side, x, y }, rallyKey) {
+    const part = (px, py, w, h, color, r = 0) => rect(px, py, w, h, color).rounded(r);
+    const nozzleX = side === "right" ? 0 : MACHINE_W - 7;
+    const hopperBall = (px, py) => div().absolute().left(px).top(py).size(7).child(tennisBall(7));
+    return div().id(`ball-machine-${rallyKey}`).absolute().left(x).top(y).w(MACHINE_W).h(MACHINE_H)
+      .tooltip("Ball machine: no hitting partner on court")
+      .child(part(2, MACHINE_H - 5, MACHINE_W - 4, 5, "#00000040", 3))
+      .child(hopperBall(6, 1)).child(hopperBall(11, -1)).child(hopperBall(16, 1))
+      .child(part(3, 6, MACHINE_W - 6, 8, "#2c3238", 2))
+      .child(part(2, 5, MACHINE_W - 4, 2, "#151a1e", 1))
+      .child(part(4, 13, MACHINE_W - 8, 14, "#e9edf0", 3))
+      .child(part(6, 16, MACHINE_W - 12, 3, "#2c3238", 1))
+      .child(div().id(`ball-machine-light-${rallyKey}`).absolute().left(side === "right" ? MACHINE_W - 9 : 5).top(21).size(4).rounded(2)
+        .bg("#3fdc6a").loop("opacity", { from: 0.35, to: 1, period: RALLY_MS / 2 }))
+      .child(part(nozzleX, MACHINE_NOZZLE_Y - 3, 7, 6, "#151a1e", 2))
+      .child(part(5, MACHINE_H - 10, 8, 8, "#151a1e", 4))
+      .child(part(MACHINE_W - 13, MACHINE_H - 10, 8, 8, "#151a1e", 4));
   }
 
   ball(from, to, rallyKey) {

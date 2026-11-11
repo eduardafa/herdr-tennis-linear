@@ -37,6 +37,7 @@ To start agents on issues from a fresh worktree, list your repos in `~/.config/h
 
 - Pick a court with the Hard (NY or MEL), Grass, Clay and Indoor buttons on the scoreboard, or a tennis theme in Settings. After installing, restart Herdr once so it loads the Melbourne theme.
 - Each player wears its space's color, except on grass, where everyone wears white.
+- An agent working with no partner on the other side rallies with a ball machine instead.
 - Click a player, or an agent in the left panel, to jump to that agent.
 - Hover over a player to see its model, program, what it's doing, its branch and when it started.
 - Right-click a player, or an agent in the left panel, for its menu: go to it, peek at it, rename it, pin it to the top, split a shell beside it, or close it. A renamed agent shows its new name everywhere; renaming it to nothing goes back to its space's name.
