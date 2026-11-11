@@ -45,6 +45,7 @@ To start agents on issues from a fresh worktree, list your repos in `~/.config/h
 - Your name and a settings button sit under the Spaces list.
 - The left panel groups your agents into Rally (working), Challenge (needs you), Ready and Point (finished). Each space below shows the same marker for its busiest agent.
 - Click a section header, the Spaces header or a repo's arrow to fold it.
+- "Order of play" groups your issues by status or by project. Sub-issues fold under their parent; click "N sub-issues" to show them.
 - In "Order of play", click an issue to open it in Linear, or right-click it to serve it, change its status, priority or title, comment, or see its parent and sub-issues. Copy branch copies its Linear branch name. The arrow in the header folds the panel.
 
 What each part does is in [RECIPE.md](RECIPE.md).

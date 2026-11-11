@@ -38,7 +38,8 @@ const PANEL_W = 300, RAIL_W = 36;
 const ISSUES_QUERY = `query {
   viewer {
     assignedIssues(first: 150, filter: { state: { type: { nin: ${JSON.stringify(HIDDEN_STATE_TYPES)} } } }) {
-      nodes { id identifier title url priority branchName team { id } state { id name type color position } }
+      nodes { id identifier title url priority branchName team { id } state { id name type color position }
+        parent { id identifier title } project { id name color } }
     }
   }
   teams(first: 50) { nodes { id states(first: 50) { nodes { id name type color position } } } }
@@ -150,6 +151,9 @@ export default class LinearCourt extends View {
     this.seenChange = shared(CHANGED_KEY);
     this.folded = new Set(JSON.parse(localStorage.getItem("linear.folded") ?? "[]"));
     this.collapsed = JSON.parse(localStorage.getItem("linear.collapsed") ?? "false");
+    this.groupBy = localStorage.getItem("linear.groupBy") === "project" ? "project" : "status";
+    this.expanded = new Set(JSON.parse(localStorage.getItem("linear.expanded") ?? "[]"));
+    this.kids = new Map();
     this.refresh(cx);
     cx.timer.every(REFRESH_MS, (cx) => this.refresh(cx));
     cx.timer.every(CHANGE_CHECK_MS, (cx) => {
@@ -169,6 +173,9 @@ export default class LinearCourt extends View {
       try {
         const data = await linear(ISSUES_QUERY);
         this.issues = data.viewer.assignedIssues.nodes;
+        const ids = new Set(this.issues.map((i) => i.id));
+        this.expanded = new Set([...this.expanded].filter((id) => ids.has(id)));
+        localStorage.setItem("linear.expanded", JSON.stringify([...this.expanded]));
         this.states = Object.fromEntries(data.teams.nodes.map((team) => [team.id, [...team.states.nodes].sort(byWorkflow)]));
         this.missingKey = false;
         this.error = null;
@@ -218,18 +225,85 @@ export default class LinearCourt extends View {
     return div().size(7).rounded(4).bg(t.idle);
   }
 
+  // Sub-issues whose parent is also assigned to you nest under it, wherever the parent is grouped.
+  // The rest are roots: they get grouped by status or by project.
   groups() {
-    const byState = new Map();
-    for (const issue of this.issues ?? []) {
-      const name = issue.state.name;
-      if (!byState.has(name)) byState.set(name, { state: issue.state, issues: [] });
-      byState.get(name).issues.push(issue);
+    const issues = this.issues ?? [];
+    const assigned = new Set(issues.map((i) => i.id));
+    const nested = (i) => Boolean(i.parent) && assigned.has(i.parent.id);
+    const kids = new Map();
+    for (const issue of issues) {
+      if (!nested(issue)) continue;
+      if (!kids.has(issue.parent.id)) kids.set(issue.parent.id, []);
+      kids.get(issue.parent.id).push(issue);
     }
-    return [...byState.values()].sort((a, b) => byWorkflow(a.state, b.state));
+    for (const list of kids.values()) list.sort((a, b) => byWorkflow(a.state, b.state));
+    this.kids = kids;
+    const size = (i) => 1 + (kids.get(i.id) ?? []).reduce((n, k) => n + size(k), 0);
+    const byProject = this.groupBy === "project";
+    const byKey = new Map();
+    for (const issue of issues.filter((i) => !nested(i))) {
+      const key = byProject ? `project:${issue.project?.id ?? "none"}` : issue.state.name;
+      if (!byKey.has(key)) {
+        byKey.set(key, byProject
+          ? { key, name: issue.project?.name ?? "No project", color: issue.project?.color, issues: [], count: 0 }
+          : { key, name: issue.state.name, color: issue.state.color, state: issue.state, issues: [], count: 0 });
+      }
+      const group = byKey.get(key);
+      group.issues.push(issue);
+      group.count += size(issue);
+    }
+    const list = [...byKey.values()];
+    if (!byProject) return list.sort((a, b) => byWorkflow(a.state, b.state));
+    for (const group of list) group.issues.sort((a, b) => byWorkflow(a.state, b.state));
+    const none = (g) => (g.key === "project:none" ? 1 : 0);
+    return list.sort((a, b) => none(a) - none(b) || a.name.localeCompare(b.name));
   }
 
-  issueRow(issue, t) {
+  descendants(issue) {
+    return (this.kids.get(issue.id) ?? []).flatMap((k) => [k, ...this.descendants(k)]);
+  }
+
+  toggleExpanded(issue, cx) {
+    this.expanded.has(issue.id) ? this.expanded.delete(issue.id) : this.expanded.add(issue.id);
+    localStorage.setItem("linear.expanded", JSON.stringify([...this.expanded]));
+    cx.notify();
+  }
+
+  issueTree(issue, t, depth) {
+    const kids = this.kids.get(issue.id) ?? [];
+    const row = this.issueRow(issue, t, depth, kids);
+    if (!kids.length || !this.expanded.has(issue.id)) return row;
+    return v_flex().flex_none().child(row)
+      .child(v_flex().flex_none().ml(14).pl(4).border_l(1).border_color(t.border)
+        .children(kids.map((k) => this.issueTree(k, t, depth + 1))));
+  }
+
+  // A collapsed parent shows the busiest agent working on any of its sub-issues.
+  playingInside(issue) {
+    const players = this.descendants(issue).map((k) => this.playing(k)).filter(Boolean);
+    players.sort((a, b) => URGENCY.indexOf(a.status) - URGENCY.indexOf(b.status));
+    return players[0] ?? null;
+  }
+
+  subIssuesChip(issue, kids, t) {
+    const open = this.expanded.has(issue.id);
+    const inside = open ? null : this.playingInside(issue);
+    const total = this.descendants(issue).length;
+    return h_flex().id(`issue-kids-${issue.identifier}`).flex_none().gap(3).items_center().px(4).rounded(4)
+      .text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.raised).text_color(t.foreground))
+      .tooltip(open ? "Hide sub-issues" : "Show sub-issues")
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); this.toggleExpanded(issue, cx); })
+      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(9).flex_none().text_color(t.dim))
+      .child(div().child(`${total} sub-issue${total === 1 ? "" : "s"}`))
+      .when(Boolean(inside), (el) => el.child(this.marker(inside, t)));
+  }
+
+  issueRow(issue, t, depth = 0, kids = []) {
     const agent = this.playing(issue);
+    const showState = depth > 0 || this.groupBy === "project";
+    const orphan = depth === 0 && issue.parent && !this.issues.some((i) => i.id === issue.parent.id);
     return h_flex().id(`issue-${issue.identifier}`).flex_none().px(8).py(4).gap(9).items_start().rounded(6).cursor_pointer()
       .hover((s) => s.bg(t.hover))
       .on_click(() => exec("open", [issue.url]))
@@ -241,7 +315,12 @@ export default class LinearCourt extends View {
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_size(12.5).text_color(t.foreground).child(issue.title))
         .child(h_flex().gap(6).items_center().text_size(10.5)
-          .child(div().text_color(t.dim).child(issue.identifier))
+          .when(showState, (el) => el.child(div().id(`issue-state-${issue.identifier}`).size(7).flex_none().rounded(4)
+            .bg(issue.state.color ?? t.muted).tooltip(issue.state.name)))
+          .child(div().id(`issue-ident-${issue.identifier}`).flex_none().text_color(t.dim)
+            .when(Boolean(orphan), (el) => el.tooltip(`Sub-issue of ${issue.parent.identifier}: ${issue.parent.title}`))
+            .child(orphan ? `${issue.parent.identifier} › ${issue.identifier}` : issue.identifier))
+          .when(kids.length > 0, (el) => el.child(this.subIssuesChip(issue, kids, t)))
           .when(Boolean(agent), (el) => el.child(div().font_weight(700)
             .text_color(agent.status === "working" ? t.working : t[agent.status] ?? t.muted).child(sport().call[agent.status] ?? "")))
           .child(div().flex_1())
@@ -260,21 +339,41 @@ export default class LinearCourt extends View {
   }
 
   section(group, t) {
-    const color = group.state.color;
-    const folded = this.folded.has(group.state.name);
+    const color = group.color;
+    const folded = this.folded.has(group.key);
     return v_flex().flex_none().mx(8).mt(6).pb(folded ? 0 : 4).rounded(8)
       .bg(tint(color, "14", t.raised)).border(1).border_color(tint(color, "40", t.border))
-      .child(h_flex().id(`state-${group.state.name}`).h(28).px(10).gap(8).items_center().cursor_pointer()
+      .child(h_flex().id(`group-${group.key}`).h(28).px(10).gap(8).items_center().cursor_pointer()
         .on_click((_e, cx) => {
-          folded ? this.folded.delete(group.state.name) : this.folded.add(group.state.name);
+          folded ? this.folded.delete(group.key) : this.folded.add(group.key);
           localStorage.setItem("linear.folded", JSON.stringify([...this.folded]));
           cx.notify();
         })
         .child(div().size(8).flex_none().rounded(4).bg(color ?? t.muted))
-        .child(div().flex_1().truncate().text_size(11).font_weight(800).text_color(color ?? t.foreground).child(group.state.name.toUpperCase()))
-        .child(div().text_size(11.5).font_weight(700).text_color(t.foreground).child(String(group.issues.length)))
+        .child(div().flex_1().truncate().text_size(11).font_weight(800).text_color(color ?? t.foreground).child(group.name.toUpperCase()))
+        .child(div().text_size(11.5).font_weight(700).text_color(t.foreground).child(String(group.count)))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().text_color(t.dim)))
-      .when(!folded, (el) => el.children(group.issues.map((issue) => this.issueRow(issue, t))));
+      .when(!folded, (el) => el.children(group.issues.map((issue) => this.issueTree(issue, t, 0))));
+  }
+
+  groupBar(t) {
+    const option = (mode, text) => {
+      const on = this.groupBy === mode;
+      return div().id(`group-by-${mode}`).px(8).py(1).rounded(5).cursor_pointer().text_size(11)
+        .font_weight(on ? 700 : 500).text_color(on ? t.foreground : t.dim)
+        .when(on, (el) => el.bg(t.raised))
+        .when(!on, (el) => el.hover((s) => s.text_color(t.foreground)))
+        .on_click((_e, cx) => {
+          this.groupBy = mode;
+          localStorage.setItem("linear.groupBy", mode);
+          cx.notify();
+        })
+        .child(text);
+    };
+    return h_flex().h(26).flex_none().px(14).gap(4).items_center().text_size(10.5).text_color(t.dim)
+      .child(div().mr(4).child("Group by"))
+      .child(option("status", "Status"))
+      .child(option("project", "Project"));
   }
 
   body(t) {
@@ -502,9 +601,9 @@ export default class LinearCourt extends View {
       .child(svg("mods/workspace-chrome/chevron-left.svg").size(13).text_color(t.muted))
       .when(Boolean(this.issues), (el) => el
         .child(div().text_size(11.5).font_weight(700).text_color(t.foreground).child(String(this.issues.length)))
-        .children(this.groups().map((g) => v_flex().items_center().gap(2)
-          .child(div().size(8).rounded(4).bg(g.state.color ?? t.muted))
-          .child(div().text_size(10).text_color(t.muted).child(String(g.issues.length))))))
+        .children(this.groups().map((g) => v_flex().id(`rail-${g.key}`).items_center().gap(2).tooltip(g.name)
+          .child(div().size(8).rounded(4).bg(g.color ?? t.muted))
+          .child(div().text_size(10).text_color(t.muted).child(String(g.count))))))
       .when(this.missingKey || Boolean(this.error && !this.issues), (el) => el.child(div().size(8).rounded(4).bg(t.blocked)));
   }
 
@@ -526,6 +625,7 @@ export default class LinearCourt extends View {
           .hover((s) => s.bg(t.hover).text_color(t.foreground))
           .on_click((_e, cx) => this.refresh(cx))
           .child(this.loading ? "Loading" : "Refresh")))
+      .when(Boolean(this.issues?.length), (el) => el.child(this.groupBar(t)))
       .child(v_flex().id("linear-issues").flex_1().min_h(0).pb(10).overflow_y_scrollbar().child(this.body(t)))
       .child(h_flex().h(24).flex_none().px(14).gap(6).text_size(10.5).text_color(t.dim)
         .child(div().flex_1().truncate().child("Right-click an issue to change it"))

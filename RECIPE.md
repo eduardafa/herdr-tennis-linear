@@ -15,10 +15,12 @@ Top to bottom:
 
 4. **Linear panel** ("Order of play"), 300px, `chrome` background, folding to a 36px strip.
    - Header, 31px: the Linear logo (13px, `#5e6ad2`), "Order of play" (700), the issue count, a fold chevron and "Refresh".
-   - Body: the issues assigned to you that aren't completed, canceled or duplicates, grouped by Linear workflow state (started, then unstarted, backlog, triage; Linear's own order inside each type and inside each state). Each state is a card like the agents panel's: 8% tint and 25% border of the state's Linear color, a 28px header with a dot, the uppercase name, the count and a fold chevron.
-   - Each issue is two lines: the title (12.5px, truncated), then the ID (10.5px, `dim`), the agent status word if one is on it, and "Copy branch" at the right end. A 14px slot left of the title holds the agent's marker (the same markers as the agents panel).
+   - Group bar, 26px, shown once there are issues: "Group by" (10.5px, `dim`) and two options, **Status** and **Project** (11px; the picked one 700 on `raised`, the other `dim`). Remembered in `localStorage` key `linear.groupBy`.
+   - Body: the issues assigned to you that aren't completed, canceled or duplicates, grouped by Linear workflow state (started, then unstarted, backlog, triage; Linear's own order inside each type and inside each state), or by project (alphabetical, "No project" last; issues inside sorted by workflow state). Each group is a card like the agents panel's: 8% tint and 25% border of the state's or project's Linear color, a 28px header with a dot, the uppercase name, the count (sub-issues included) and a fold chevron. Folds are remembered per group in `linear.folded`.
+   - Sub-issues: an issue whose parent is also assigned to you nests under that parent, wherever the parent is grouped, at any depth. A parent shows a chip after its ID: a 9px chevron and "N sub-issues" (all descendants), plus the busiest agent's marker from any sub-issue while folded. Clicking the chip shows or hides them; they start hidden, and the open ones are remembered in `linear.expanded` (pruned to issues still listed on each refresh). Shown sub-issues sit 14px in, behind a 1px `border` line on the left. A sub-issue whose parent isn't assigned to you stays top-level with its ID written `PARENT › ID` and the parent's title in a tooltip.
+   - Each issue is two lines: the title (12.5px, truncated), then, for sub-issues and when grouped by project, a 7px dot in the issue's state color (state name as a tooltip), the ID (10.5px, `dim`), the sub-issues chip, the agent status word if one is on it, and "Copy branch" at the right end. A 14px slot left of the title holds the agent's marker (the same markers as the agents panel).
    - Footer, 24px: "Right-click an issue to change it" and "Updated HH:MM" (or "Refresh failed, last HH:MM").
-   - Folded strip: the Linear logo, a left chevron, the total, and a dot with the count for each state; a red dot when the key is missing or Linear can't be reached.
+   - Folded strip: the Linear logo, a left chevron, the total, and a dot with the count for each group (state or project, its name as a tooltip); a red dot when the key is missing or Linear can't be reached.
    - Right-click menu, a 340 x 700px popup at the pointer, scrolling when long: the ID and title; a **SERVE** box (ball-yellow tint) with the issue's Linear branch name, a "New Claude Code tab in <space>" button when a space is already on that branch, and one equal-width button per repo from `serve.json` under "New worktree from main in:"; **STATUS** (the team's workflow states, current one marked); **PRIORITY** chips (Urgent, High, Medium, Low, None); **TITLE** and **COMMENT** inputs with Save and Post; **PARENT** and **SUB-ISSUES (n)** (state color, ID, title, assignee's first name); "Open in Linear".
 
 Courts (layout surface colors, then theme `background` / `accent`):
@@ -101,7 +103,7 @@ Under each player: a dark `#00000066` label up to 180px wide, centered on the pl
 
 - The Linear panel is macOS only: the key comes from the Keychain, links open with `open` and branches are copied with `pbcopy`.
 - Add the key with `security add-generic-password -s herdr-linear -a linear -w` (add `-U` to replace one). It needs write access for the menu's changes; a read-only key still shows the list.
-- Linear refuses queries that are too expensive. Keep the refreshing query lean and load parent, sub-issues and descriptions only when the menu needs them.
+- Linear refuses queries that are too expensive. Keep the refreshing query lean: beyond each issue's own fields it only asks for its parent (`id identifier title`) and project (`id name color`), which nesting and project grouping need. Load sub-issue details and descriptions only when the menu needs them.
 - Write `mod.json` (`{"place":"none"}`) before `main.js` when creating a mod folder: a folder seen without it is docked into the shown layout.
 - Layout names come from file names, and `layout.switch` can't reach a name with spaces or "+": that's why the file is `Tennis-Linear.json`, not "Tennis + Linear".
 - New worktree branches use `--no-track`; tracking `origin/main` would let a plain `git push` aim at main.
@@ -124,7 +126,7 @@ Under each player: a dark `#00000066` label up to 180px wide, centered on the pl
 - Court labels show the whole space name with the status on the line below it.
 - With 10 agents, all 10 stand on court with no bench and no labels crossing the net; with 11 or more, the bench appears on the right and the extra agents sit on it.
 - At zoom 0.9 the court (and the bench, when shown) reaches the window's right side with no empty gap.
-- With a Linear key in the Keychain, "Order of play" lists your open assigned issues grouped by state, with the Linear logo in its header; without one it shows the Keychain command.
+- With a Linear key in the Keychain, "Order of play" lists your open assigned issues grouped by state (or by project, from the group bar), sub-issues folded under their parent, with the Linear logo in its header; without one it shows the Keychain command.
 - An issue whose ID is in an agent's branch shows that agent's marker and status word.
 - Right-click, then a status, moves the issue in Linear and into its new card within a few seconds; Copy branch puts the branch name on the clipboard.
 - Serve with a repo in `serve.json` creates `~/.herdr/worktrees/<repo>/<branch>` from `origin/main`, nests the new space under the repo and starts the agent with the issue as its first message.
